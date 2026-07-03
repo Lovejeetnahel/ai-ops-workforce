@@ -1,0 +1,1562 @@
+// AI Operations Workforce System — data model
+// Multi-tenant (shared schema, tenantId discriminator, RLS-ready).
+// The model is industry-AGNOSTIC: vertical vocabulary/workflow comes from the
+// Industry Module Config (packages/config), not from separate tables.
+
+generator client {
+  provider        = "prisma-client-js"
+  // postgresqlExtensions lets Prisma manage the pgvector extension; the
+  // embedding columns themselves are Unsupported("vector") and read/written
+  // via raw SQL in the Brain layer (see business-brain.service.ts).
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
+}
+
+// ───────────────────────────── Enums ─────────────────────────────
+
+enum IndustryModule {
+  FIELD_SERVICES
+  PROPERTY_MANAGEMENT
+  SERVICE_AGENCIES
+}
+
+enum UserRole {
+  OWNER
+  ADMIN
+  STAFF
+  CUSTOMER
+}
+
+enum AccountStatus {
+  ACTIVE
+  INVITED
+  SUSPENDED
+}
+
+// Generic pipeline shared by all industries; module config supplies labels.
+enum LeadStage {
+  NEW
+  CONTACTED
+  QUALIFIED
+  BOOKED
+  COMPLETED
+  LOST
+}
+
+enum Urgency {
+  LOW
+  NORMAL
+  HIGH
+  EMERGENCY
+}
+
+enum Channel {
+  VOICE
+  SMS
+  WHATSAPP
+  WEBCHAT
+  EMAIL
+  PORTAL
+  INTERNAL
+}
+
+enum ConversationStatus {
+  OPEN
+  WAITING
+  CLOSED
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+// Author of a message: a human, one of the agents, or the external contact.
+enum Actor {
+  CONTACT
+  STAFF
+  VOICE_AGENT
+  CHAT_AGENT
+  CRM_AGENT
+  DISPATCH_AGENT
+  FOLLOWUP_AGENT
+  DOCUMENT_AGENT
+  SYSTEM
+}
+
+// Generic work-item status; module config maps these to vertical labels
+// (e.g. DISPATCHED → "Technician en route" / "Contractor assigned").
+enum JobStatus {
+  UNSCHEDULED
+  SCHEDULED
+  DISPATCHED
+  IN_PROGRESS
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum JobPriority {
+  LOW
+  NORMAL
+  HIGH
+  EMERGENCY
+}
+
+enum BookingStatus {
+  REQUESTED
+  CONFIRMED
+  RESCHEDULED
+  CANCELLED
+  NO_SHOW
+  COMPLETED
+}
+
+enum DocumentType {
+  INVOICE
+  QUOTE
+  FORM
+  CONTRACT
+  UPLOAD
+  REPORT
+}
+
+enum DocumentStatus {
+  DRAFT
+  SENT
+  VIEWED
+  SIGNED
+  PAID
+  VOID
+}
+
+enum IntegrationProvider {
+  VAPI
+  RETELL
+  BLAND
+  TWILIO
+  SENDGRID
+  GOOGLE_CALENDAR
+  STRIPE
+}
+
+enum IntegrationStatus {
+  CONNECTED
+  DISCONNECTED
+  ERROR
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+enum EventStatus {
+  RECEIVED
+  PROCESSED
+  FAILED
+}
+
+// ───────────────────────────── Tenant ─────────────────────────────
+
+model Tenant {
+  id             String         @id @default(cuid())
+  name           String
+  slug           String         @unique
+  industryModule IndustryModule
+  timezone       String         @default("America/New_York")
+  // Multi-company: optional parent organization (franchise/branch rollups).
+  organizationId String?
+  // Free-form per-tenant overrides on top of the industry config defaults.
+  settings       Json           @default("{}")
+  status         AccountStatus  @default(ACTIVE)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  users          User[]
+  contacts       Contact[]
+  leads          Lead[]
+  conversations  Conversation[]
+  jobs           Job[]
+  bookings       Booking[]
+  documents      Document[]
+  automationRules AutomationRule[]
+  integrations   Integration[]
+  payments       Payment[]
+  eventLogs      EventLog[]
+  auditLogs      AuditLog[]
+  knowledgeDocs   KnowledgeDoc[]
+  knowledgeChunks KnowledgeChunk[]
+  memories        EntityMemory[]
+  decisionRecords DecisionRecord[]
+  ledgerEntries   ValueLedgerEntry[]
+  companies       Company[]
+  activities      Activity[]
+  teams           Team[]
+  workingHours    WorkingHours[]
+  timeOff         TimeOff[]
+  documentLineItems DocumentLineItem[]
+  portalUsers     CustomerPortalUser[]
+  notifications   Notification[]
+  bookingRequests BookingRequest[]
+
+  @@index([industryModule])
+}
+
+// ───────────────────────────── Users ─────────────────────────────
+// Internal accounts (owner/admin/staff) AND authenticated customers.
+
+model User {
+  id           String        @id @default(cuid())
+  tenantId     String
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  email        String
+  passwordHash String?
+  name         String
+  phone        String?
+  role         UserRole
+  status       AccountStatus @default(ACTIVE)
+  // Staff-only: skills/zones used by the Dispatch agent for routing.
+  skills       String[]      @default([])
+  serviceZones String[]      @default([])
+  hourlyRate   Decimal?      @db.Decimal(10, 2) // labor costing (Value Ledger)
+  // If this user is the portal login for a Contact, link them.
+  contactId    String?       @unique
+  contact      Contact?      @relation(fields: [contactId], references: [id])
+  teamId       String?
+  team         Team?         @relation(fields: [teamId], references: [id])
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  assignedLeads Lead[]    @relation("LeadAssignee")
+  assignedJobs  Job[]     @relation("JobAssignee")
+  bookings      Booking[] @relation("BookingAssignee")
+  workingHours  WorkingHours[]
+  timeOff       TimeOff[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId, role])
+}
+
+// ──────────────────────────── Contacts ────────────────────────────
+// The person on the other side: customer / tenant-resident / applicant.
+
+model Contact {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name      String
+  email     String?
+  phone     String?
+  // Vertical-specific facts (property unit, A-number, company, etc.)
+  attributes Json    @default("{}")
+  tags      String[] @default([])
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  portalUser    User?
+  portalAccount CustomerPortalUser?
+  leads         Lead[]
+  conversations Conversation[]
+  jobs          Job[]
+  bookings      Booking[]
+  documents     Document[]
+  payments      Payment[]
+  activities    Activity[]
+  notifications Notification[]
+  bookingRequests BookingRequest[]
+
+  @@index([tenantId, phone])
+  @@index([tenantId, email])
+}
+
+// ───────────────────────────── Leads ─────────────────────────────
+// One row per opportunity. entityType ties it to the module's vocabulary
+// (e.g. "service_request", "maintenance_request", "client_lead").
+
+model Lead {
+  id          String     @id @default(cuid())
+  tenantId    String
+  tenant      Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contactId   String
+  contact     Contact    @relation(fields: [contactId], references: [id])
+  entityType  String
+  stage       LeadStage  @default(NEW)
+  source      String?    // voice, webchat, sms, web_form, referral...
+  serviceType String?
+  urgency     Urgency    @default(NORMAL)
+  location    String?
+  estimatedValue Decimal? @db.Decimal(12, 2)
+  // Intake answers collected by the Voice/Chat agents, keyed by module field.
+  intake      Json       @default("{}")
+  lostReason  String?
+  assignedToId String?
+  assignedTo  User?      @relation("LeadAssignee", fields: [assignedToId], references: [id])
+  companyId   String?
+  company     Company?   @relation(fields: [companyId], references: [id])
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  conversations Conversation[]
+  jobs          Job[]
+  bookings      Booking[]
+  documents     Document[]
+  activities    Activity[]
+
+  @@index([tenantId, stage])
+  @@index([tenantId, assignedToId])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, contactId])
+}
+
+// ───────────────────── Conversations & Messages ──────────────────
+// Omnichannel thread. externalRef = provider thread id (Twilio/Vapi/Stripe).
+
+model Conversation {
+  id         String             @id @default(cuid())
+  tenantId   String
+  tenant     Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contactId  String?
+  contact    Contact?           @relation(fields: [contactId], references: [id])
+  leadId     String?
+  lead       Lead?              @relation(fields: [leadId], references: [id])
+  channel    Channel
+  status     ConversationStatus @default(OPEN)
+  // Which agent currently owns the thread.
+  handledBy  Actor              @default(SYSTEM)
+  externalRef String?
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  messages   Message[]
+
+  @@index([tenantId, status])
+  @@index([externalRef])
+}
+
+model Message {
+  id             String           @id @default(cuid())
+  conversationId String
+  conversation   Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  direction      MessageDirection
+  author         Actor
+  body           String
+  mediaUrl       String?
+  // STT transcript, intent, entities, tool calls, etc.
+  meta           Json             @default("{}")
+  createdAt      DateTime         @default(now())
+
+  @@index([conversationId, createdAt])
+}
+
+// ─────────────────────────── Jobs / Tasks ────────────────────────
+// Work to be performed. entityType ties it to module vocabulary
+// (technician_job / contractor_job / case). Generic so all verticals share it.
+
+model Job {
+  id           String      @id @default(cuid())
+  tenantId     String
+  tenant       Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  leadId       String?
+  lead         Lead?       @relation(fields: [leadId], references: [id])
+  contactId    String?
+  contact      Contact?    @relation(fields: [contactId], references: [id])
+  entityType   String
+  title        String
+  description  String?
+  status       JobStatus   @default(UNSCHEDULED)
+  priority     JobPriority @default(NORMAL)
+  location     String?
+  scheduledStart DateTime?
+  scheduledEnd   DateTime?
+  completedAt    DateTime?
+  assignedToId String?
+  assignedTo   User?       @relation("JobAssignee", fields: [assignedToId], references: [id])
+  teamId       String?
+  team         Team?       @relation(fields: [teamId], references: [id])
+  // Checklist, parts, case milestones, photos — vertical specific.
+  metadata     Json        @default("{}")
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  bookings     Booking[]
+  documents    Document[]
+  activities   Activity[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, assignedToId, scheduledStart])
+  @@index([tenantId, contactId])
+}
+
+// ───────────────────────────── Bookings ──────────────────────────
+
+model Booking {
+  id            String        @id @default(cuid())
+  tenantId      String
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contactId     String?
+  contact       Contact?      @relation(fields: [contactId], references: [id])
+  leadId        String?
+  lead          Lead?         @relation(fields: [leadId], references: [id])
+  jobId         String?
+  job           Job?          @relation(fields: [jobId], references: [id])
+  start         DateTime
+  end           DateTime
+  status        BookingStatus @default(REQUESTED)
+  assignedToId  String?
+  assignedTo    User?         @relation("BookingAssignee", fields: [assignedToId], references: [id])
+  // External calendar event id (Google Calendar) for two-way sync.
+  calendarEventId String?
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([tenantId, start])
+  @@index([assignedToId, start])
+  @@index([tenantId, contactId])
+}
+
+// ──────────────────────────── Documents ──────────────────────────
+
+model Document {
+  id         String         @id @default(cuid())
+  tenantId   String
+  tenant     Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contactId  String?
+  contact    Contact?       @relation(fields: [contactId], references: [id])
+  leadId     String?
+  lead       Lead?          @relation(fields: [leadId], references: [id])
+  jobId      String?
+  job        Job?           @relation(fields: [jobId], references: [id])
+  type       DocumentType
+  status     DocumentStatus @default(DRAFT)
+  templateKey String?       // which module template generated it
+  title      String
+  url        String?        // object-storage URL of rendered PDF
+  amount     Decimal?       @db.Decimal(12, 2)
+  // Line items, form answers, signature blocks.
+  data       Json           @default("{}")
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  payments   Payment[]
+  lineItems  DocumentLineItem[]
+
+  @@index([tenantId, type, status])
+  @@index([tenantId, contactId])
+}
+
+// ───────────────────────── Automation rules ──────────────────────
+// Tenant-level rules layered ON TOP of the industry module presets.
+
+model AutomationRule {
+  id           String   @id @default(cuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name         String
+  triggerEvent String   // e.g. "call.missed", "lead.created"
+  // JSON-logic condition tree, evaluated against the event payload.
+  conditions   Json     @default("[]")
+  // Ordered action list: [{ type: "SEND_SMS", params: {...} }, ...]
+  actions      Json     @default("[]")
+  enabled      Boolean  @default(true)
+  // Null = custom rule; set = derived from a module preset (for upgrades).
+  presetKey    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([tenantId, triggerEvent, enabled])
+}
+
+// ─────────────────────────── Integrations ────────────────────────
+// Per-tenant provider credentials (config encrypted at rest).
+
+model Integration {
+  id        String              @id @default(cuid())
+  tenantId  String
+  tenant    Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  provider  IntegrationProvider
+  status    IntegrationStatus   @default(DISCONNECTED)
+  // AES-256-GCM encrypted JSON: { apiKey, accountSid, phoneNumber, ... }
+  config    String?
+  lastError String?
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+
+  @@unique([tenantId, provider])
+}
+
+// ───────────────────────────── Payments ──────────────────────────
+
+model Payment {
+  id          String        @id @default(cuid())
+  tenantId    String
+  tenant      Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contactId   String?
+  contact     Contact?      @relation(fields: [contactId], references: [id])
+  documentId  String?
+  document    Document?     @relation(fields: [documentId], references: [id])
+  amount      Decimal       @db.Decimal(12, 2)
+  currency    String        @default("usd")
+  status      PaymentStatus @default(PENDING)
+  provider    IntegrationProvider @default(STRIPE)
+  externalRef String?       // Stripe PaymentIntent id
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([tenantId, status])
+  @@index([tenantId, contactId])
+}
+
+// ─────────────────── Observability / idempotency ─────────────────
+
+// Every domain + provider event. Doubles as the idempotency ledger:
+// a unique (tenantId, source, externalId) stops duplicate webhook processing.
+model EventLog {
+  id         String      @id @default(cuid())
+  tenantId   String
+  tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name       String      // "call.missed", "twilio.message.received"...
+  source     String      @default("internal")
+  externalId String?
+  payload    Json        @default("{}")
+  status     EventStatus @default(RECEIVED)
+  error      String?
+  createdAt  DateTime    @default(now())
+
+  @@unique([tenantId, source, externalId])
+  @@index([tenantId, name, createdAt])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  actorId   String?  // user id or agent name
+  action    String   // "lead.stage_changed", "user.invited"...
+  entity    String?
+  entityId  String?
+  diff      Json     @default("{}")
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+}
+
+// ═══════════════════════════ Business Brain (V2) ═══════════════════════════
+// Centralized, tenant-scoped knowledge + memory layer that every AI agent
+// retrieves from. Structured rows live here; semantic vectors live in the
+// `embedding` columns (pgvector), read/written via raw SQL in the Brain layer.
+
+enum KnowledgeType {
+  SERVICE
+  PRICING
+  SOP        // standard operating procedure
+  FAQ
+  CONTRACT
+  DOCUMENT
+  POLICY     // business rule expressed as prose
+  NOTE
+  PROFILE    // company profile
+}
+
+// Permission tier — gates which audiences may retrieve a doc via RAG.
+enum KnowledgeVisibility {
+  PUBLIC     // safe for the customer portal AI
+  INTERNAL   // staff + admin + owner
+  RESTRICTED // admin + owner only
+}
+
+enum MemorySubject {
+  CUSTOMER   // -> Contact.id
+  EMPLOYEE   // -> User.id
+  TENANT     // org-wide memory
+}
+
+enum MemoryKind {
+  PREFERENCE   // "prefers morning visits", "text not call"
+  FACT         // "has a 2-year warranty on the AC unit"
+  SUMMARY      // rolling summary of interactions
+  INTERACTION  // a single logged interaction
+  PERFORMANCE  // employee performance signal
+  STYLE        // communication style
+}
+
+/// A unit of business knowledge. Versioned: editing supersedes the old row.
+model KnowledgeDoc {
+  id             String              @id @default(cuid())
+  tenantId       String
+  tenant         Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  type           KnowledgeType
+  title          String
+  source         String?             // url, filename, "manual", integration name
+  content        String              // raw text (pre-chunk)
+  metadata       Json                @default("{}")
+  visibility     KnowledgeVisibility @default(INTERNAL)
+  version        Int                 @default(1)
+  supersededById String?             // points to the newer version, if any
+  archived       Boolean             @default(false)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  chunks KnowledgeChunk[]
+
+  @@index([tenantId, type, archived])
+  @@index([tenantId, visibility])
+}
+
+/// A retrievable, embedded slice of a KnowledgeDoc.
+model KnowledgeChunk {
+  id        String                         @id @default(cuid())
+  tenantId  String
+  tenant    Tenant                         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  docId     String
+  doc       KnowledgeDoc                   @relation(fields: [docId], references: [id], onDelete: Cascade)
+  ordinal   Int
+  content   String
+  tokens    Int?
+  // pgvector column (voyage-3 = 1024 dims). Managed via raw SQL.
+  embedding  Unsupported("vector(1024)")?
+  createdAt DateTime                       @default(now())
+
+  @@index([tenantId])
+  @@index([docId, ordinal])
+}
+
+/// Persistent memory about a customer, employee, or the org. Both structured
+/// (key/value) and semantic (embedding) so agents can recall + personalize.
+model EntityMemory {
+  id            String                       @id @default(cuid())
+  tenantId      String
+  tenant        Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  subjectType   MemorySubject
+  subjectId     String                       // Contact.id / User.id / tenantId
+  kind          MemoryKind
+  key           String?                      // optional structured key
+  content       String
+  confidence    Float                        @default(1)
+  sourceEventId String?                      // EventLog.id that produced it
+  embedding     Unsupported("vector(1024)")?
+  createdAt     DateTime                     @default(now())
+  updatedAt     DateTime                     @updatedAt
+
+  @@index([tenantId, subjectType, subjectId, kind])
+}
+
+// ═══════════════════════════ Control Layer (V2) ════════════════════════════
+// Turns reactive automation into an ACCOUNTABLE system: every executed action
+// becomes a DecisionRecord with an outcome predicted BEFORE it runs; downstream
+// business signals resolve it; realized value is booked to the ValueLedger.
+// Additive only — the automation engine and agents are untouched and wrapped.
+
+enum DecisionStatus {
+  OPEN     // action executed, outcome not yet observed
+  MET      // expected business outcome occurred
+  MISSED   // deadline passed without the outcome
+  PARTIAL  // an intermediate signal occurred, final outcome pending
+}
+
+enum ValueType {
+  REVENUE_BOOKED     // a job/booking was created (expected revenue)
+  REVENUE_COLLECTED  // a payment was received
+  LEAD_RECOVERED     // a lead was created/saved (e.g. missed-call save)
+  CONVERSION         // a qualifying step completed
+  ENGAGEMENT         // customer responded / re-engaged
+  COST               // estimated cost of the action
+}
+
+enum LedgerDirection {
+  CREDIT // value generated
+  DEBIT  // cost incurred
+}
+
+/// One per executed automation action. The outcome contract (expectedSignal +
+/// expectedBy) is set before the action runs; the evaluator resolves it later.
+model DecisionRecord {
+  id             String         @id @default(cuid())
+  tenantId       String
+  tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // Provenance — links a decision to the triggering event + position in the
+  // resolved rule/action matrix (used as the idempotency key on retries).
+  correlationId  String
+  triggerEvent   String         // event name that triggered it
+  policy         String         @default("rule")
+  ruleName       String?
+  ruleIndex      Int            @default(0)
+  actionIndex    Int            @default(0)
+  actionType     String
+  actionParams   Json           @default("{}")
+  context        Json           @default("{}") // snapshot from Business Brain + event
+
+  // Expected outcome — DEFINED BEFORE THE ACTION EXECUTES.
+  expectedSignal String?        // downstream event that would satisfy it
+  expectedValue  Decimal?       @db.Decimal(12, 2)
+  expectedBy     DateTime?      // deadline; past-due OPEN → MISSED
+
+  status         DecisionStatus @default(OPEN)
+
+  // Subject refs for matching downstream business signals.
+  contactId      String?
+  leadId         String?
+  jobId          String?
+
+  resolvedAt     DateTime?
+  realizedValue  Decimal?       @db.Decimal(12, 2)
+  resolutionNote String?
+
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  ledgerEntries  ValueLedgerEntry[]
+
+  @@unique([tenantId, correlationId, ruleIndex, actionIndex], name: "decision_dedupe")
+  @@index([tenantId, status, expectedSignal])
+  @@index([tenantId, status, expectedBy])
+  @@index([tenantId, contactId])
+  @@index([tenantId, leadId])
+}
+
+/// The backend truth source for business impact: value generated (and optional
+/// cost) per action, attributable to a decision/agent/policy.
+model ValueLedgerEntry {
+  id         String          @id @default(cuid())
+  tenantId   String
+  tenant     Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  decisionId String?
+  decision   DecisionRecord? @relation(fields: [decisionId], references: [id], onDelete: SetNull)
+  actionType String?
+  agent      String?         // policy/agent/action that produced the value
+  valueType  ValueType
+  direction  LedgerDirection @default(CREDIT)
+  amount     Decimal         @db.Decimal(12, 2)
+  currency   String          @default("usd")
+  source     String?         // the signal event that realized it
+  createdAt  DateTime        @default(now())
+
+  @@index([tenantId, valueType, createdAt])
+  @@index([tenantId, createdAt])
+}
+
+// ════════════════════════ Universal CRM core (Phase 1) ═════════════════════
+// Company = B2B account (landlord/property co, client org, commercial account).
+// Activity = ONE polymorphic timeline entity that subsumes Notes, Tasks, and
+// every logged touchpoint, auto-projected from EventBus. No per-type tables.
+
+model Company {
+  id         String     @id @default(cuid())
+  tenantId   String
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name       String
+  domain     String?
+  phone      String?
+  email      String?
+  website    String?
+  // Vertical-specific facts (portfolio size, industry, account tier, etc.)
+  attributes Json       @default("{}")
+  tags       String[]   @default([])
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  contacts   Contact[]
+  leads      Lead[]
+  activities Activity[]
+
+  @@index([tenantId, name])
+}
+
+enum ActivityType {
+  NOTE
+  TASK
+  CALL
+  EMAIL
+  SMS
+  MEETING
+  STAGE_CHANGE
+  JOB_UPDATE
+  DOCUMENT
+  PAYMENT
+  SYSTEM
+  AI_ACTION
+}
+
+enum ActivityStatus {
+  OPEN
+  DONE
+  CANCELLED
+}
+
+/// Universal timeline item. `status`/`dueAt`/`assigneeId` are meaningful when
+/// type = TASK; otherwise it is an immutable log entry. Linked to any subset of
+/// contact/company/lead/job so one query renders a full 360° history.
+model Activity {
+  id           String         @id @default(cuid())
+  tenantId     String
+  tenant       Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  type         ActivityType
+  status       ActivityStatus @default(OPEN)
+  title        String
+  body         String?
+  actor        Actor          @default(SYSTEM) // who/what produced it (reuses Actor)
+  authorUserId String?        // human author, if any
+  assigneeId   String?        // task owner
+  dueAt        DateTime?
+  completedAt  DateTime?
+
+  // Polymorphic subject links (any subset).
+  contactId    String?
+  contact      Contact?       @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  companyId    String?
+  company      Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  leadId       String?
+  lead         Lead?          @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  jobId        String?
+  job          Job?           @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  sourceEventId String?       // EventLog id when auto-projected from an event
+  metadata      Json          @default("{}")
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([tenantId, contactId, createdAt])
+  @@index([tenantId, companyId, createdAt])
+  @@index([tenantId, leadId, createdAt])
+  @@index([tenantId, type, status])
+  @@index([tenantId, assigneeId, status])
+}
+
+// ═══════════════════════ Operations engine (Phase 2) ═══════════════════════
+// Teams, recurring availability, and time-off — the inputs the central
+// ScheduleService uses for conflict-free booking and the DispatchService uses
+// for assignment. Generic across industries (crews, contractors, caseworkers).
+
+model Team {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members User[]
+  jobs    Job[]
+
+  @@index([tenantId])
+}
+
+/// Recurring weekly working hours for a staff member. Minutes are counted from
+/// local midnight; multiple rows per weekday allow split shifts.
+model WorkingHours {
+  id          String @id @default(cuid())
+  tenantId    String
+  tenant      Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weekday     Int    // 0 = Sunday … 6 = Saturday
+  startMinute Int
+  endMinute   Int
+
+  @@index([tenantId, userId, weekday])
+}
+
+/// One-off unavailability block (PTO, sick, holiday) that blocks scheduling.
+model TimeOff {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  start     DateTime
+  end       DateTime
+  reason    String?
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, userId, start])
+}
+
+// ════════════════════════ Revenue / line items (Phase 3) ═══════════════════
+// Structured line items behind quotes & invoices. Document.amount is the sum.
+// Quotes convert to invoices by copying these rows; payments settle the parent.
+
+model DocumentLineItem {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  documentId  String
+  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Decimal  @default(1) @db.Decimal(12, 2)
+  unitPrice   Decimal  @db.Decimal(12, 2)
+  amount      Decimal  @db.Decimal(12, 2) // quantity * unitPrice
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId, documentId])
+}
+
+// ════════════════════════ Customer Portal (Phase 4) ════════════════════════
+// External self-serve platform. A CustomerPortalUser is a SEPARATE auth
+// principal from the internal staff `User` (security separation), linked to a
+// CRM Contact. Portal messaging REUSES Conversation/Message (channel = PORTAL);
+// only notifications and booking requests are new.
+
+enum NotificationImportance {
+  NORMAL
+  IMPORTANT
+}
+
+enum BookingRequestStatus {
+  PENDING
+  CONVERTED
+  DECLINED
+}
+
+/// External login for a customer, scoped to a tenant and bound to one Contact.
+model CustomerPortalUser {
+  id           String        @id @default(cuid())
+  tenantId     String
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contactId    String        @unique
+  contact      Contact       @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  email        String
+  passwordHash String
+  status       AccountStatus @default(ACTIVE)
+  lastLoginAt  DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+}
+
+/// In-app (and email-ready) customer notification, created from EventBus events.
+model Notification {
+  id          String                 @id @default(cuid())
+  tenantId    String
+  tenant      Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contactId   String
+  contact     Contact                @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  category    String                 // the source event name / type
+  title       String
+  body        String
+  importance  NotificationImportance @default(NORMAL)
+  read        Boolean                @default(false)
+  readAt      DateTime?
+  sourceEvent String?
+  data        Json                   @default("{}")
+  createdAt   DateTime               @default(now())
+
+  @@index([tenantId, contactId, read, createdAt])
+}
+
+/// A customer-initiated service request that converts into a Lead → Job.
+model BookingRequest {
+  id          String               @id @default(cuid())
+  tenantId    String
+  tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contactId   String
+  contact     Contact              @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  serviceType String?
+  urgency     Urgency              @default(NORMAL)
+  preferredAt DateTime?
+  notes       String?
+  status      BookingRequestStatus @default(PENDING)
+  leadId      String?
+  jobId       String?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@index([tenantId, status])
+  @@index([tenantId, contactId])
+}
+
+// ═══════════════════ Employee Workforce Platform (Phase 5) ═════════════════
+// Industry-agnostic field-execution primitives. Scalar foreign keys (userId /
+// jobId) keep these decoupled and avoid touching the existing relation graph;
+// tenant isolation is enforced by the tenant-scoped Prisma client. A handful of
+// generic models realize the full feature surface (time, media, forms, assets).
+
+enum TimeEntryType {
+  SHIFT
+  BREAK
+  JOB
+  TRAVEL
+}
+
+enum ShiftStatus {
+  SCHEDULED
+  ACTIVE
+  COMPLETED
+  MISSED
+}
+
+enum AttachmentKind {
+  PHOTO
+  PHOTO_BEFORE
+  PHOTO_AFTER
+  VIDEO
+  VOICE_NOTE
+  DOCUMENT
+  SIGNATURE_CUSTOMER
+  SIGNATURE_EMPLOYEE
+  OCR_SCAN
+}
+
+enum FieldFormType {
+  CHECKLIST
+  INSPECTION
+  INCIDENT
+  SAFETY
+  DAMAGE
+  QUALITY
+  CUSTOM
+}
+
+enum FieldFormStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+enum ApprovalType {
+  QUALITY
+  SUPERVISOR
+  MANAGER
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REWORK
+}
+
+enum AssetType {
+  EQUIPMENT
+  VEHICLE
+  TOOL
+  OTHER
+}
+
+enum AssetStatus {
+  AVAILABLE
+  ASSIGNED
+  MAINTENANCE
+  RETIRED
+}
+
+/// Unified time record: clock in/out (SHIFT), breaks, job timer, travel + mileage.
+model TimeEntry {
+  id              String        @id @default(cuid())
+  tenantId        String
+  userId          String
+  jobId           String?
+  type            TimeEntryType
+  startedAt       DateTime      @default(now())
+  endedAt         DateTime?
+  durationMinutes Int?
+  miles           Decimal?      @db.Decimal(10, 2)
+  note            String?
+  source          String        @default("app")
+  createdAt       DateTime      @default(now())
+
+  @@index([tenantId, userId, startedAt])
+  @@index([tenantId, jobId])
+  @@index([tenantId, type, endedAt])
+}
+
+/// Scheduled/worked shift for attendance + shift management.
+model Shift {
+  id         String      @id @default(cuid())
+  tenantId   String
+  userId     String
+  start      DateTime
+  end        DateTime
+  status     ShiftStatus @default(SCHEDULED)
+  clockInAt  DateTime?
+  clockOutAt DateTime?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@index([tenantId, userId, start])
+}
+
+/// Any media attached to a job: photos (before/after), video, voice notes,
+/// signatures, scanned docs. AI/OCR results live in metadata.
+model JobAttachment {
+  id        String         @id @default(cuid())
+  tenantId  String
+  jobId     String
+  userId    String?
+  kind      AttachmentKind
+  url       String
+  mimeType  String?
+  metadata  Json           @default("{}") // ocrText, aiLabels, geo, code, signer
+  createdAt DateTime       @default(now())
+
+  @@index([tenantId, jobId, kind])
+}
+
+/// Reusable form/checklist definition; industry-config aware (industryModule).
+model FieldFormTemplate {
+  id             String          @id @default(cuid())
+  tenantId       String
+  key            String
+  name           String
+  type           FieldFormType
+  industryModule IndustryModule? // null = all industries
+  schema         Json            @default("[]") // [{ key, label, type, required, options }]
+  active         Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@unique([tenantId, key])
+  @@index([tenantId, type, active])
+}
+
+/// A filled form: checklist, inspection, incident/safety/damage/QA report.
+model FieldFormSubmission {
+  id          String          @id @default(cuid())
+  tenantId    String
+  templateId  String?
+  templateKey String?
+  type        FieldFormType
+  jobId       String?
+  userId      String?
+  answers     Json            @default("{}")
+  status      FieldFormStatus @default(SUBMITTED)
+  score       Int?
+  aiSummary   String?
+  createdAt   DateTime        @default(now())
+
+  @@index([tenantId, jobId])
+  @@index([tenantId, type, createdAt])
+}
+
+/// QA / supervisor / manager approval (and rework requests) for a job.
+model JobApproval {
+  id            String         @id @default(cuid())
+  tenantId      String
+  jobId         String
+  type          ApprovalType
+  status        ApprovalStatus @default(PENDING)
+  requestedById String?
+  reviewerId    String?
+  notes         String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([tenantId, status])
+  @@index([tenantId, jobId])
+}
+
+/// Equipment / vehicle / tool asset. `identifier` = serial / QR / NFC / barcode.
+model Asset {
+  id           String      @id @default(cuid())
+  tenantId     String
+  name         String
+  type         AssetType   @default(EQUIPMENT)
+  identifier   String?
+  status       AssetStatus @default(AVAILABLE)
+  assignedToId String?
+  metadata     Json        @default("{}")
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@index([tenantId, status])
+  @@index([tenantId, identifier])
+}
+
+model InventoryItem {
+  id           String   @id @default(cuid())
+  tenantId     String
+  sku          String?
+  name         String
+  unit         String   @default("each")
+  quantity     Decimal  @default(0) @db.Decimal(12, 2)
+  reorderLevel Decimal? @db.Decimal(12, 2)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([tenantId, name])
+}
+
+/// Materials consumed on a job (feeds invoicing + inventory depletion).
+model MaterialUsage {
+  id          String   @id @default(cuid())
+  tenantId    String
+  jobId       String
+  itemId      String?
+  description String
+  quantity    Decimal  @default(1) @db.Decimal(12, 2)
+  unitCost    Decimal? @db.Decimal(12, 2)
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId, jobId])
+}
+
+/// GPS breadcrumb for live location + route/mileage analytics.
+model LocationPing {
+  id         String   @id @default(cuid())
+  tenantId   String
+  userId     String
+  jobId      String?
+  lat        Float
+  lng        Float
+  recordedAt DateTime @default(now())
+
+  @@index([tenantId, userId, recordedAt])
+}
+
+// ════════════════════════ AI Workforce (Phase 6) ═══════════════════════════
+// Installable AI employees that cooperate via EventBus, log Decisions, and book
+// to the Value Ledger. Working memory + run history live in AgentTask; long-term
+// memory reuses the Business Brain (EntityMemory); per-agent value/cost reuse
+// the existing ValueLedgerEntry.agent tag. Only two new tables are needed.
+
+enum AgentAuthority {
+  SUGGEST     // produce recommendations only, no side effects
+  APPROVE     // act but require human approval for consequential actions
+  AUTONOMOUS  // act within permissions
+}
+
+enum AgentTaskStatus {
+  QUEUED
+  RUNNING
+  WAITING
+  DONE
+  FAILED
+  CANCELLED
+}
+
+/// Per-tenant installation/config of an AI employee (marketplace foundation).
+model AgentInstallation {
+  id          String         @id @default(cuid())
+  tenantId    String
+  agentKey    String
+  enabled     Boolean        @default(true)
+  authority   AgentAuthority @default(AUTONOMOUS)
+  config      Json           @default("{}")
+  permissions String[]       @default([])
+  version     String         @default("1.0.0")
+  installedAt DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@unique([tenantId, agentKey])
+  @@index([tenantId, enabled])
+}
+
+/// A unit of AI-employee work: observation → plan → execution. Holds working
+/// memory (input/output), the reasoning trace, and the orchestration tree.
+model AgentTask {
+  id            String          @id @default(cuid())
+  tenantId      String
+  agentKey      String
+  type          String
+  status        AgentTaskStatus @default(RUNNING)
+  parentTaskId  String?
+  correlationId String?
+  contactId     String?
+  leadId        String?
+  jobId         String?
+  input         Json            @default("{}")
+  output        Json            @default("{}")
+  reason        String?
+  confidence    Float?
+  error         String?
+  startedAt     DateTime        @default(now())
+  endedAt       DateTime?
+  createdAt     DateTime        @default(now())
+
+  @@index([tenantId, agentKey, status])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, parentTaskId])
+}
+
+// ════════════════ Enterprise Intelligence & Platform (Phase 7) ═════════════
+// Analytics dashboards, predictions/insights, reports, API keys, consent,
+// organizations, feedback/learning, webhooks, and the workflow engine. Generic,
+// reusing Value Ledger / Control / Brain data. Scalar FKs keep them decoupled.
+
+enum WorkflowStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum WorkflowRunStatus {
+  RUNNING
+  WAITING
+  DONE
+  FAILED
+  CANCELLED
+}
+
+/// Saved analytics dashboard (predefined or custom), with widgets.
+model Dashboard {
+  id          String   @id @default(cuid())
+  tenantId    String
+  key         String
+  name        String
+  type        String   @default("custom") // revenue/ops/sales/employee/executive/custom
+  layout      Json     @default("{}")
+  isDefault   Boolean  @default(false)
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  widgets DashboardWidget[]
+
+  @@unique([tenantId, key])
+}
+
+/// A widget on a dashboard — a KPI, chart, leaderboard, or custom metric.
+model DashboardWidget {
+  id          String   @id @default(cuid())
+  tenantId    String
+  dashboardId String
+  dashboard   Dashboard @relation(fields: [dashboardId], references: [id], onDelete: Cascade)
+  kind        String   // kpi/timeseries/leaderboard/table
+  title       String
+  metricKey   String
+  config      Json     @default("{}")
+  position    Int      @default(0)
+
+  @@index([tenantId, dashboardId])
+}
+
+/// A stored prediction / insight / anomaly from the intelligence engine.
+model Prediction {
+  id          String   @id @default(cuid())
+  tenantId    String
+  type        String   // revenue_forecast/churn/clv/no_show/anomaly/...
+  subjectType String?
+  subjectId   String?
+  value       Decimal? @db.Decimal(14, 2)
+  label       String?
+  confidence  Float?
+  horizonDays Int?
+  data        Json     @default("{}")
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId, type, createdAt])
+  @@index([tenantId, subjectType, subjectId])
+}
+
+/// A report definition (ad-hoc or scheduled) for the reporting engine.
+model ReportDefinition {
+  id         String   @id @default(cuid())
+  tenantId   String
+  key        String
+  name       String
+  type       String   // revenue/operations/sales/executive/custom
+  format     String   @default("json") // json/csv
+  schedule   String? // cron expression (scheduled reports)
+  config     Json     @default("{}")
+  recipients String[] @default([])
+  enabled    Boolean  @default(true)
+  lastRunAt  DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([tenantId, key])
+}
+
+/// Public API credential with scopes + rate limit.
+model ApiKey {
+  id              String    @id @default(cuid())
+  tenantId        String
+  name            String
+  prefix          String
+  hashedKey       String    @unique
+  scopes          String[]  @default([])
+  rateLimitPerMin Int       @default(120)
+  lastUsedAt      DateTime?
+  expiresAt       DateTime?
+  revoked         Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+
+  @@index([tenantId, revoked])
+}
+
+/// GDPR/PIPEDA consent record for a contact.
+model ConsentRecord {
+  id        String   @id @default(cuid())
+  tenantId  String
+  contactId String
+  type      String   // marketing/sms/email/data_processing
+  granted   Boolean
+  source    String?
+  at        DateTime @default(now())
+
+  @@index([tenantId, contactId, type])
+}
+
+/// Parent organization for multi-company (franchise/branch) rollups.
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  type      String   @default("company") // company/franchise/group
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([slug])
+}
+
+/// Human/customer feedback feeding the learning engine.
+model Feedback {
+  id          String   @id @default(cuid())
+  tenantId    String
+  subjectType String   // agent/job/decision/conversation
+  subjectId   String?
+  agentKey    String?
+  decisionId  String?
+  rating      Int?
+  sentiment   String?
+  comment     String?
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId, subjectType, createdAt])
+  @@index([tenantId, agentKey])
+}
+
+/// Outbound webhook subscription (integration platform).
+model WebhookSubscription {
+  id           String   @id @default(cuid())
+  tenantId     String
+  url          String
+  events       String[] @default([])
+  secret       String
+  active       Boolean  @default(true)
+  failureCount Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([tenantId, active])
+}
+
+/// A versioned visual workflow (graph of nodes/edges) authored in the builder.
+model WorkflowDefinition {
+  id           String         @id @default(cuid())
+  tenantId     String
+  key          String
+  name         String
+  version      Int            @default(1)
+  status       WorkflowStatus @default(DRAFT)
+  triggerEvent String?
+  graph        Json           @default("{}") // { nodes: [...], edges: [...] }
+  enabled      Boolean        @default(false)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  runs WorkflowRun[]
+
+  @@unique([tenantId, key, version])
+  @@index([tenantId, status, enabled])
+}
+
+/// A single execution of a workflow (supports WAIT via resumeAt).
+model WorkflowRun {
+  id            String             @id @default(cuid())
+  tenantId      String
+  workflowId    String
+  workflow      WorkflowDefinition @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  status        WorkflowRunStatus  @default(RUNNING)
+  currentNodeId String?
+  context       Json               @default("{}")
+  log           Json               @default("[]")
+  resumeAt      DateTime?
+  error         String?
+  startedAt     DateTime           @default(now())
+  endedAt       DateTime?
+
+  @@index([tenantId, status, resumeAt])
+  @@index([tenantId, workflowId])
+}
+
+// ═══════════════ Marketplace, Billing & Launch (Phase 8 / V1.0) ════════════
+// Marketplace listings are a GLOBAL catalog (no tenantId — base client);
+// installs/reviews/subscriptions/usage are tenant-scoped.
+
+/// A publishable marketplace item (AI employee, workflow, template, integration).
+model MarketplaceListing {
+  id            String   @id @default(cuid())
+  key           String   @unique
+  type          String // agent/workflow/template/integration/dashboard
+  name          String
+  description   String?
+  version       String   @default("1.0.0")
+  priceCents    Int      @default(0) // 0 = free
+  authorTenantId String?
+  status        String   @default("published") // draft/published
+  ratingAvg     Float    @default(0)
+  ratingCount   Int      @default(0)
+  downloads     Int      @default(0)
+  metadata      Json     @default("{}")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([type, status])
+}
+
+model MarketplaceInstall {
+  id        String   @id @default(cuid())
+  tenantId  String
+  listingId String
+  listingKey String
+  version   String
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, listingId])
+  @@index([tenantId])
+}
+
+model MarketplaceReview {
+  id        String   @id @default(cuid())
+  tenantId  String
+  listingId String
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, listingId])
+  @@index([listingId])
+}
+
+/// A tenant's plan subscription (Stripe-backed).
+model Subscription {
+  id               String    @id @default(cuid())
+  tenantId         String    @unique
+  planKey          String
+  status           String    @default("trialing") // trialing/active/past_due/canceled
+  seats            Int       @default(1)
+  trialEndsAt      DateTime?
+  currentPeriodEnd DateTime?
+  stripeRef        String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([status])
+}
+
+/// Metered usage for usage-based billing (per metric, per month).
+model UsageRecord {
+  id        String   @id @default(cuid())
+  tenantId  String
+  metric    String // ai_tasks/sms/calls/seats/...
+  period    String // YYYY-MM
+  quantity  Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, metric, period])
+  @@index([tenantId, period])
+}

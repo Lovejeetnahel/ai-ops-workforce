@@ -1,0 +1,120 @@
+# AI Operations Workforce — Kubernetes manifests (V1.0).
+# Stateless API + worker + web scale horizontally; Postgres (pgvector) and Redis
+# are managed services referenced via the Secret below. Apply with:
+#   kubectl apply -f deploy/k8s/aiow.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aiow
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: aiow-secrets
+  namespace: aiow
+type: Opaque
+stringData:
+  DATABASE_URL: "postgresql://aiow:CHANGE_ME@managed-postgres:5432/aiow?schema=public"
+  REDIS_URL: "redis://managed-redis:6379"
+  JWT_SECRET: "CHANGE_ME_32_BYTES_MIN"
+  CREDENTIALS_ENCRYPTION_KEY: "CHANGE_ME_64_HEX"
+  CORS_ORIGINS: "https://aiow.app"
+  ANTHROPIC_API_KEY: ""
+  VOYAGE_API_KEY: ""
+  STRIPE_SECRET_KEY: ""
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aiow-api
+  namespace: aiow
+spec:
+  replicas: 3
+  selector: { matchLabels: { app: aiow-api } }
+  template:
+    metadata: { labels: { app: aiow-api } }
+    spec:
+      securityContext: { runAsNonRoot: true, runAsUser: 1000, fsGroup: 1000 }
+      containers:
+        - name: api
+          image: ghcr.io/your-org/aiow-api:latest
+          ports: [{ containerPort: 4000 }]
+          envFrom: [{ secretRef: { name: aiow-secrets } }]
+          readinessProbe: { httpGet: { path: /api/ops/ready, port: 4000 }, initialDelaySeconds: 10, periodSeconds: 10 }
+          livenessProbe: { httpGet: { path: /api/ops/live, port: 4000 }, initialDelaySeconds: 15, periodSeconds: 20 }
+          resources: { requests: { cpu: "250m", memory: "384Mi" }, limits: { cpu: "1", memory: "768Mi" } }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: false }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aiow-worker
+  namespace: aiow
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: aiow-worker } }
+  template:
+    metadata: { labels: { app: aiow-worker } }
+    spec:
+      securityContext: { runAsNonRoot: true, runAsUser: 1000, fsGroup: 1000 }
+      containers:
+        - name: worker
+          image: ghcr.io/your-org/aiow-api:latest
+          command: ["node", "dist/worker.js"]
+          envFrom: [{ secretRef: { name: aiow-secrets } }]
+          livenessProbe: { exec: { command: ["node", "-e", "process.exit(0)"] }, initialDelaySeconds: 15, periodSeconds: 30, failureThreshold: 3 }
+          resources: { requests: { cpu: "250m", memory: "384Mi" }, limits: { cpu: "1", memory: "768Mi" } }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: false }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aiow-web
+  namespace: aiow
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: aiow-web } }
+  template:
+    metadata: { labels: { app: aiow-web } }
+    spec:
+      securityContext: { runAsNonRoot: true, runAsUser: 1000, fsGroup: 1000 }
+      containers:
+        - name: web
+          image: ghcr.io/your-org/aiow-web:latest
+          ports: [{ containerPort: 3000 }]
+          env: [{ name: WEB_PUBLIC_API_URL, value: "https://api.aiow.app" }]
+          resources: { requests: { cpu: "150m", memory: "256Mi" }, limits: { cpu: "500m", memory: "512Mi" } }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: false }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: aiow-api, namespace: aiow }
+spec: { selector: { app: aiow-api }, ports: [{ port: 80, targetPort: 4000 }] }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: aiow-web, namespace: aiow }
+spec: { selector: { app: aiow-web }, ports: [{ port: 80, targetPort: 3000 }] }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata: { name: aiow-api, namespace: aiow }
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: aiow-api }
+  minReplicas: 3
+  maxReplicas: 20
+  metrics: [{ type: Resource, resource: { name: cpu, target: { type: Utilization, averageUtilization: 70 } } }]
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: aiow
+  namespace: aiow
+  annotations: { cert-manager.io/cluster-issuer: letsencrypt }
+spec:
+  tls: [{ hosts: [aiow.app, api.aiow.app], secretName: aiow-tls }]
+  rules:
+    - host: api.aiow.app
+      http: { paths: [{ path: /, pathType: Prefix, backend: { service: { name: aiow-api, port: { number: 80 } } } }] }
+    - host: aiow.app
+      http: { paths: [{ path: /, pathType: Prefix, backend: { service: { name: aiow-web, port: { number: 80 } } } }] }
