@@ -1,45 +1,43 @@
 # Multi-stage build for the NestJS API + worker (same image, two entrypoints).
-FROM node:20-alpine AS base
+#
+# Debian slim, not alpine: Prisma's engines are built and tested against
+# glibc + OpenSSL 3 (debian-openssl-3.0.x). On alpine/musl the schema engine
+# failed libssl detection during `migrate deploy` and crashed with
+# "Could not parse schema engine response".
+FROM node:20-slim AS base
+RUN apt-get update -y \
+ && apt-get install -y --no-install-recommends openssl ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
 RUN corepack enable
 WORKDIR /repo
 
-# ---- deps ----
-FROM base AS deps
-# node-linker=hoisted installs all packages as real files in a flat node_modules/
-# tree (identical to npm/yarn behaviour). Without this, pnpm uses an isolated
-# virtual store where each package's transitive deps live nested inside
-# node_modules/.pnpm/<pkg>/node_modules/ and are NOT present at the top level.
-# Docker COPY preserves symlinks rather than following them, so packages in the
-# isolated store are unreachable from the runtime image — producing "Cannot find
-# module" errors for prisma, @prisma/engines, reflect-metadata, and any other
-# package that is not a direct root dependency.
-RUN echo "node-linker=hoisted" >> .npmrc
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml turbo.json ./
-COPY packages/config/package.json packages/config/
-COPY apps/api/package.json apps/api/
-RUN pnpm install --frozen-lockfile
-
 # ---- build ----
-FROM deps AS build
+FROM base AS build
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml turbo.json ./
 COPY packages/config packages/config
 COPY apps/api apps/api
+RUN pnpm install --frozen-lockfile
 # @aiow/config must be compiled first — its package.json points main/types at
 # dist/, so the file must exist before the api build resolves the import.
 RUN pnpm --filter @aiow/config build
 RUN pnpm --filter @aiow/api exec prisma generate
 RUN pnpm --filter @aiow/api build
+# `pnpm deploy` produces a fully self-contained production bundle at /out:
+# the api package files (dist/, prisma/, package.json) plus a complete
+# node_modules containing ALL production deps — including workspace packages
+# like @aiow/config — materialized inside the bundle with internal links only.
+# Nothing in /out references the monorepo layout, so copying it to the runtime
+# image cannot drop transitive packages (the failure mode behind every
+# previous "Cannot find module" error).
+RUN pnpm --filter @aiow/api deploy --prod /out
+# Regenerate the Prisma client inside the bundle so the query engine binary
+# for this platform is guaranteed present in the bundle's own node_modules.
+RUN cd /out && node node_modules/prisma/build/index.js generate
 
 # ---- runtime ----
 FROM base AS runtime
 ENV NODE_ENV=production
-# node_modules/ is a hoisted flat tree: every package and every transitive dep
-# is a real file directly under node_modules/. COPY is a straightforward file
-# copy — no symlink chains, no .pnpm virtual store to reconstruct.
-COPY --from=build /repo/node_modules ./node_modules
-COPY --from=build /repo/packages ./packages
-COPY --from=build /repo/apps/api/dist ./dist
-COPY --from=build /repo/apps/api/prisma ./prisma
-COPY --from=build /repo/apps/api/package.json ./package.json
+COPY --from=build /out /repo
 RUN chown -R node:node /repo
 USER node
 EXPOSE 4000

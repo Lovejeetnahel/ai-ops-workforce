@@ -1,0 +1,12 @@
+# Never send local installs or secrets into the Docker build context.
+# node_modules must be excluded: host installs contain platform-specific
+# binaries and (on Windows) absolute symlinks that break inside the image.
+**/node_modules
+**/dist
+**/.next
+**/.env
+**/.env.*
+!.env.example
+.git
+*.md
+deploy/
