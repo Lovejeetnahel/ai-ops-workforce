@@ -4,6 +4,9 @@ RUN corepack enable
 WORKDIR /repo
 
 FROM base AS deps
+# node-linker=hoisted: flat node_modules so all packages are real files and
+# Docker COPY works across stage boundaries without symlink resolution issues.
+RUN echo "node-linker=hoisted" >> .npmrc
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml turbo.json ./
 COPY packages/config/package.json packages/config/
 COPY apps/web/package.json apps/web/
@@ -13,7 +16,9 @@ FROM deps AS build
 ENV NEXT_OUTPUT=standalone
 COPY packages/config packages/config
 COPY apps/web apps/web
-# @aiow/config's package.json points main/types at dist/ — build it first.
+# public/ may not exist in source when no static assets have been added yet.
+# Create it so Next.js build succeeds and the runtime COPY below never fails.
+RUN mkdir -p apps/web/public
 RUN pnpm --filter @aiow/config build
 RUN pnpm --filter @aiow/web build
 
