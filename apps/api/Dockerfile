@@ -20,23 +20,28 @@ RUN pnpm --filter @aiow/config build
 RUN pnpm --filter @aiow/api exec prisma generate
 RUN pnpm --filter @aiow/api build
 
+# ---- materialize ----
+# pnpm installs workspace deps as symlinks in apps/api/node_modules/ pointing
+# into the root .pnpm virtual store. Docker COPY preserves symlinks rather than
+# following them, so those symlinks would arrive broken in the runtime image.
+# cp -rL dereferences them into real files inside the build environment (Linux,
+# correct absolute paths) before any COPY crosses a stage boundary.
+FROM build AS materialize
+RUN cp -rL /repo/apps/api/node_modules/prisma /repo/node_modules/prisma && \
+    cp -rL /repo/apps/api/node_modules/reflect-metadata /repo/node_modules/reflect-metadata
+
 # ---- runtime ----
 FROM base AS runtime
 ENV NODE_ENV=production
-# /repo/node_modules holds the pnpm virtual store (.pnpm/) — the actual package files.
-# /repo/apps/api/node_modules holds the per-workspace symlinks that point into .pnpm.
-# Both layers are required: Node resolves modules via the symlinks, which dereference
-# into .pnpm. Copying only the root node_modules drops the symlink layer and breaks
-# requires for reflect-metadata, prisma, and any other workspace-scoped dependency.
-COPY --from=build /repo/node_modules ./node_modules
+# node_modules comes from materialize: has the .pnpm store plus the two
+# dereferenced packages (prisma, reflect-metadata) now as real files.
+COPY --from=materialize /repo/node_modules ./node_modules
 COPY --from=build /repo/packages ./packages
-COPY --from=build /repo/apps/api/node_modules ./apps/api/node_modules
-COPY --from=build /repo/apps/api/dist ./apps/api/dist
-COPY --from=build /repo/apps/api/prisma ./apps/api/prisma
-COPY --from=build /repo/apps/api/package.json ./apps/api/package.json
+COPY --from=build /repo/apps/api/dist ./dist
+COPY --from=build /repo/apps/api/prisma ./prisma
+COPY --from=build /repo/apps/api/package.json ./package.json
 RUN chown -R node:node /repo
 USER node
-WORKDIR /repo/apps/api
 EXPOSE 4000
 # Run migrations then start the API. The worker overrides CMD in compose.
 CMD ["sh", "-c", "node node_modules/prisma/build/index.js migrate deploy && node dist/main.js"]
