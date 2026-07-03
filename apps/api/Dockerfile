@@ -23,13 +23,20 @@ RUN pnpm --filter @aiow/api build
 # ---- runtime ----
 FROM base AS runtime
 ENV NODE_ENV=production
+# /repo/node_modules holds the pnpm virtual store (.pnpm/) — the actual package files.
+# /repo/apps/api/node_modules holds the per-workspace symlinks that point into .pnpm.
+# Both layers are required: Node resolves modules via the symlinks, which dereference
+# into .pnpm. Copying only the root node_modules drops the symlink layer and breaks
+# requires for reflect-metadata, prisma, and any other workspace-scoped dependency.
 COPY --from=build /repo/node_modules ./node_modules
 COPY --from=build /repo/packages ./packages
-COPY --from=build /repo/apps/api/dist ./dist
-COPY --from=build /repo/apps/api/prisma ./prisma
-COPY --from=build /repo/apps/api/package.json ./package.json
+COPY --from=build /repo/apps/api/node_modules ./apps/api/node_modules
+COPY --from=build /repo/apps/api/dist ./apps/api/dist
+COPY --from=build /repo/apps/api/prisma ./apps/api/prisma
+COPY --from=build /repo/apps/api/package.json ./apps/api/package.json
 RUN chown -R node:node /repo
 USER node
+WORKDIR /repo/apps/api
 EXPOSE 4000
 # Run migrations then start the API. The worker overrides CMD in compose.
 CMD ["sh", "-c", "node node_modules/prisma/build/index.js migrate deploy && node dist/main.js"]
