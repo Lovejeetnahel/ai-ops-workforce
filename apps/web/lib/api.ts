@@ -10,6 +10,16 @@ function token(): string | null {
   return window.localStorage.getItem('aiow_token');
 }
 
+export function isAuthed(): boolean {
+  return token() !== null;
+}
+
+export function logout() {
+  if (typeof window === 'undefined') return;
+  window.localStorage.removeItem('aiow_token');
+  window.localStorage.removeItem('aiow_user');
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}/api${path}`, {
     ...init,
@@ -25,9 +35,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  // auth + crm
+  // auth + onboarding
   login: (email: string, password: string) =>
     request<{ accessToken: string; user: any }>(`/auth/login`, { method: 'POST', body: JSON.stringify({ email, password }) }),
+  signup: (name: string, ownerEmail: string, ownerPassword: string, industryModule: string) =>
+    request<any>(`/tenants`, { method: 'POST', body: JSON.stringify({ name, ownerEmail, ownerPassword, industryModule }) }),
+  industryModules: () => request<{ key: string; label: string; tagline: string }[]>(`/tenants/modules`),
+
+  // crm
   moduleConfig: () => request<any>(`/config/module`),
   board: () => request<{ stage: string; leads: any[] }[]>(`/leads/board`),
   moveStage: (id: string, stage: string) => request(`/leads/${id}/stage`, { method: 'PATCH', body: JSON.stringify({ stage }) }),

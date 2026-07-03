@@ -1,21 +1,16 @@
 import './globals.css';
 import type { Metadata } from 'next';
-import { Sidebar } from '../components/Sidebar';
 
 export const metadata: Metadata = {
-  title: 'AI Operations Workforce',
-  description: 'Your AI receptionist, dispatcher, admin and follow-up team.',
+  title: 'AI Operations Workforce — The AI Business OS for Service Industries',
+  description:
+    'Automate leads, dispatch, field teams, customer portal, invoices, payments, analytics, AI employees, workflows, and marketplace apps from one operating system.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body>
-        <div className="app">
-          <Sidebar />
-          <div className="main">{children}</div>
-        </div>
-      </body>
+    <html lang="en" data-theme="dark">
+      <body>{children}</body>
     </html>
   );
 }

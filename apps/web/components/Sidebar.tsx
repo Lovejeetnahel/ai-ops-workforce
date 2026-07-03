@@ -1,31 +1,59 @@
 'use client';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { isAuthed, logout } from '../lib/api';
 
-const LINKS = [
-  { href: '/dashboard', label: 'Pipeline' },
-  { href: '/analytics', label: 'Analytics' },
-  { href: '/executive', label: 'Executive' },
-  { href: '/workforce', label: 'AI Workforce' },
-  { href: '/automations', label: 'Automations' },
-  { href: '/jobs', label: 'My Jobs (Staff)' },
-  { href: '/portal', label: 'Customer Portal' },
-  { href: '/marketplace', label: 'Marketplace' },
-  { href: '/notifications', label: 'Notifications' },
-  { href: '/billing', label: 'Billing' },
-  { href: '/settings', label: 'Settings' },
+const SECTIONS: { title: string; links: { href: string; label: string; ico: string }[] }[] = [
+  {
+    title: 'Operate',
+    links: [
+      { href: '/dashboard', label: 'Dashboard', ico: '🏠' },
+      { href: '/pipeline', label: 'Pipeline', ico: '📇' },
+      { href: '/workforce', label: 'AI Workforce', ico: '🤖' },
+      { href: '/dispatch', label: 'Dispatch', ico: '🚚' },
+      { href: '/jobs', label: 'Field Team', ico: '📱' },
+      { href: '/portal', label: 'Customer Portal', ico: '🏡' },
+    ],
+  },
+  {
+    title: 'Grow',
+    links: [
+      { href: '/revenue', label: 'Revenue', ico: '💳' },
+      { href: '/analytics', label: 'Analytics', ico: '📊' },
+      { href: '/executive', label: 'Executive Briefing', ico: '🧠' },
+    ],
+  },
+  {
+    title: 'Automate',
+    links: [
+      { href: '/automations', label: 'Automations', ico: '⚙️' },
+      { href: '/workflows', label: 'Workflows', ico: '🔀' },
+      { href: '/marketplace', label: 'Marketplace', ico: '🧩' },
+    ],
+  },
+  {
+    title: 'Manage',
+    links: [
+      { href: '/notifications', label: 'Notifications', ico: '🔔' },
+      { href: '/billing', label: 'Billing', ico: '🧾' },
+      { href: '/settings', label: 'Settings', ico: '🛠️' },
+    ],
+  },
 ];
 
-/** Shared shell nav + light/dark toggle. The nav spans every role surface. */
-export function Sidebar() {
+/** The nav column. Rendered in the desktop sidebar and the mobile drawer. */
+export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const path = usePathname();
+  const router = useRouter();
   const [theme, setTheme] = useState('dark');
+  const [authed, setAuthed] = useState(false);
 
   useEffect(() => {
     const saved = window.localStorage.getItem('aiow_theme') ?? 'dark';
     setTheme(saved);
     document.documentElement.setAttribute('data-theme', saved);
+    setAuthed(isAuthed());
   }, []);
 
   const toggle = () => {
@@ -35,20 +63,55 @@ export function Sidebar() {
     window.localStorage.setItem('aiow_theme', next);
   };
 
+  const signOut = () => {
+    logout();
+    router.push('/login');
+  };
+
   return (
     <aside className="sidebar">
-      <h1>⚡ AI Ops Workforce</h1>
-      <p className="muted" style={{ marginTop: 4, fontSize: 12 }}>Version 1.0</p>
-      <nav className="nav" style={{ marginTop: 18 }}>
-        {LINKS.map((l) => (
-          <Link key={l.href} href={l.href} className={path === l.href ? 'active' : ''}>
-            {l.label}
-          </Link>
+      <Link href="/" className="brand">
+        <span className="brand-mark">⚡</span>
+        <span>
+          <span className="brand-name">AI Ops Workforce</span>
+          <br />
+          <span className="brand-sub">Command Center</span>
+        </span>
+      </Link>
+      <nav className="nav">
+        {SECTIONS.map((s) => (
+          <div key={s.title}>
+            <div className="nav-section">{s.title}</div>
+            {s.links.map((l) => (
+              <Link
+                key={l.href}
+                href={l.href}
+                className={path === l.href ? 'active' : ''}
+                onClick={onNavigate}
+              >
+                <span className="ico">{l.ico}</span>
+                {l.label}
+              </Link>
+            ))}
+          </div>
         ))}
       </nav>
       <button className="theme-toggle" onClick={toggle}>
         {theme === 'dark' ? '☀ Light mode' : '🌙 Dark mode'}
       </button>
+      {authed ? (
+        <button className="theme-toggle" onClick={signOut} style={{ marginTop: 8 }}>
+          ↩ Sign out
+        </button>
+      ) : (
+        <Link
+          href="/login"
+          className="theme-toggle"
+          style={{ marginTop: 8, textAlign: 'center', textDecoration: 'none', display: 'block' }}
+        >
+          🔑 Sign in
+        </Link>
+      )}
     </aside>
   );
 }

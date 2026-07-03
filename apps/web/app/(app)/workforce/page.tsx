@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { api } from '../../lib/api';
+import { api } from '../../../lib/api';
 
 const FALLBACK = [
   { key: 'sales', name: 'Sales AI', department: 'Sales', installation: { enabled: true, authority: 'AUTONOMOUS' } },

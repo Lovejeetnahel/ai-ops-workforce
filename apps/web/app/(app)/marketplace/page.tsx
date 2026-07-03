@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { api } from '../../lib/api';
+import { api } from '../../../lib/api';
 
 const FALLBACK = [
   { id: '1', key: 'sales', type: 'agent', name: 'Sales AI', description: 'Qualify, score, quote, follow up.', priceCents: 0, ratingAvg: 4.8, downloads: 1240 },

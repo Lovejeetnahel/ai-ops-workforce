@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { api } from '../../lib/api';
+import { api } from '../../../lib/api';
 
 const FALLBACK_PLANS = [
   { key: 'starter', name: 'Starter', priceCents: 9900, seats: 3, features: ['CRM', 'Scheduling', 'Invoicing', '1 AI employee'] },
