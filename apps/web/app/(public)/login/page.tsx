@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { api } from '../../../lib/api';
+import { SofilicMark } from '../../../components/Logo';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -30,8 +31,9 @@ export default function LoginPage() {
   return (
     <div className="auth-wrap">
       <div className="auth-card">
-        <h1>Welcome back</h1>
-        <p className="sub">Sign in to your AI operations command center.</p>
+        <SofilicMark size={40} animated />
+        <h1>Welcome back to Sofilic</h1>
+        <p className="sub">Sign in to your AI Business Operating System.</p>
         {error && <div className="auth-err">{error}</div>}
         <form onSubmit={submit}>
           <div className="field">

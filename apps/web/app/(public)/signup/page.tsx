@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
+import { SofilicMark } from '../../../components/Logo';
 
 const FALLBACK_MODULES = [
   { key: 'FIELD_SERVICES', label: 'Field Services', tagline: 'HVAC, plumbing, electrical, repair — any mobile workforce.' },
@@ -53,7 +54,8 @@ export default function SignupPage() {
   return (
     <div className="auth-wrap">
       <div className="auth-card">
-        <h1>Create your workspace</h1>
+        <SofilicMark size={40} animated />
+        <h1>Create your Sofilic workspace</h1>
         <p className="sub">Your business, your industry module, your AI workforce — live in minutes.</p>
         {error && <div className="auth-err">{error}</div>}
         <form onSubmit={submit}>
@@ -93,7 +95,7 @@ export default function SignupPage() {
             </div>
           </div>
           <button className="btn" type="submit" disabled={loading} style={{ width: '100%', marginTop: 6 }}>
-            {loading ? 'Creating workspace…' : 'Start Free Demo'}
+            {loading ? 'Creating workspace…' : 'Get Started'}
           </button>
         </form>
         <div className="auth-foot">

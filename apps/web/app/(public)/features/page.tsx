@@ -86,7 +86,7 @@ export default function FeaturesPage() {
       <section className="final-cta">
         <h2>See every module live in one demo.</h2>
         <div className="hero-ctas" style={{ marginTop: 20 }}>
-          <Link href="/signup" className="btn">Start Free Demo</Link>
+          <Link href="/signup" className="btn">Get Started</Link>
           <Link href="/pricing" className="btn ghost">View Pricing</Link>
         </div>
       </section>

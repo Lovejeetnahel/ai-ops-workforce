@@ -19,7 +19,7 @@ const PLANS = [
 ];
 
 const FAQ = [
-  { q: 'Is there a free trial?', a: 'Yes — Start Free Demo provisions a full workspace with your industry module. No credit card required to explore.' },
+  { q: 'Is there a free trial?', a: 'Yes — Get Started provisions a full workspace with your industry module. No credit card required to explore.' },
   { q: 'What counts as a seat?', a: 'Any staff login: owners, admins, dispatchers and field techs. Customers using the portal are free and unlimited.' },
   { q: 'Can I change plans later?', a: 'Upgrade or downgrade any time from Billing; changes prorate automatically.' },
   { q: 'What are AI employees?', a: 'Installable agents (Sales AI, Collections AI, Receptionist, Executive AI…) that do real work and report their ROI on a leaderboard.' },
@@ -73,7 +73,7 @@ export default function PricingPage() {
       <section className="final-cta">
         <h2>Launch your AI operations system in days, not months.</h2>
         <div className="hero-ctas" style={{ marginTop: 20 }}>
-          <Link href="/signup" className="btn">Start Free Demo</Link>
+          <Link href="/signup" className="btn">Get Started</Link>
         </div>
       </section>
     </main>

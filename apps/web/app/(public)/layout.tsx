@@ -1,12 +1,14 @@
 'use client';
 import Link from 'next/link';
 import { useState } from 'react';
+import { SofilicLogo } from '../../components/Logo';
 
 const NAV = [
   { href: '/features', label: 'Features' },
   { href: '/industries', label: 'Industries' },
   { href: '/pricing', label: 'Pricing' },
   { href: '/demo', label: 'Demo' },
+  { href: '/resources', label: 'Resources' },
 ];
 
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
@@ -15,13 +17,8 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
   return (
     <>
       <header className="mk-header">
-        <Link href="/" className="brand">
-          <span className="brand-mark">⚡</span>
-          <span>
-            <span className="brand-name">AI Operations Workforce</span>
-            <br />
-            <span className="brand-sub">AI Business OS</span>
-          </span>
+        <Link href="/" style={{ textDecoration: 'none' }}>
+          <SofilicLogo size={36} sub="The AI Business OS" animated />
         </Link>
         <nav className="mk-nav">
           {NAV.map((n) => (
@@ -29,8 +26,8 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
           ))}
         </nav>
         <div className="mk-cta">
-          <Link href="/login" className="btn ghost sm" style={{ display: 'inline-block' }}>Login</Link>
-          <Link href="/signup" className="btn sm">Start Free Demo</Link>
+          <Link href="/login" className="btn ghost sm">Login</Link>
+          <Link href="/signup" className="btn sm">Get Started</Link>
           <button className="mk-menu-btn" onClick={() => setOpen(!open)} aria-label="Menu">☰</button>
         </div>
       </header>
@@ -39,24 +36,37 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
           <Link key={n.href} href={n.href} onClick={() => setOpen(false)}>{n.label}</Link>
         ))}
         <Link href="/login" onClick={() => setOpen(false)}>Login</Link>
-        <Link href="/signup" onClick={() => setOpen(false)}>Start Free Demo</Link>
+        <Link href="/signup" onClick={() => setOpen(false)}>Get Started</Link>
       </div>
 
       {children}
 
       <footer className="mk-footer">
         <div>
-          <strong style={{ color: 'var(--text)' }}>⚡ AI Operations Workforce</strong>
-          <div style={{ marginTop: 6 }}>The AI Business OS for service industries.</div>
+          <SofilicLogo size={30} sub="The AI Business OS" />
+          <div style={{ marginTop: 12, maxWidth: 300 }}>
+            Run your entire business with AI — leads, dispatch, field teams, payments, and executive
+            intelligence in one operating system.
+          </div>
         </div>
         <div>
-          <Link href="/features">Features</Link>
-          <Link href="/industries">Industries</Link>
-          <Link href="/pricing">Pricing</Link>
-          <Link href="/demo">Demo</Link>
-          <Link href="/login">Login</Link>
+          <div style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 10, fontSize: 12, letterSpacing: '0.08em' }}>PRODUCT</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <Link href="/features">Features</Link>
+            <Link href="/industries">Industries</Link>
+            <Link href="/pricing">Pricing</Link>
+            <Link href="/demo">Demo</Link>
+          </div>
         </div>
-        <div>© {new Date().getFullYear()} AI Operations Workforce. All rights reserved.</div>
+        <div>
+          <div style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 10, fontSize: 12, letterSpacing: '0.08em' }}>COMPANY</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <Link href="/resources">Resources</Link>
+            <Link href="/login">Login</Link>
+            <Link href="/signup">Get Started</Link>
+          </div>
+        </div>
+        <div style={{ alignSelf: 'flex-end' }}>© {new Date().getFullYear()} Sofilic. All rights reserved.</div>
       </footer>
     </>
   );

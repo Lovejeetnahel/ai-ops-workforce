@@ -66,7 +66,7 @@ export default function DemoPage() {
           Sign up, pick your industry module, and explore the full dashboard with live demo data — no credit card required.
         </p>
         <div className="hero-ctas">
-          <Link href="/signup" className="btn">Start Free Demo</Link>
+          <Link href="/signup" className="btn">Get Started</Link>
           <Link href="/login" className="btn ghost">Login</Link>
         </div>
       </section>

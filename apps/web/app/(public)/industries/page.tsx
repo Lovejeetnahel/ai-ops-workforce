@@ -46,7 +46,7 @@ export default function IndustriesPage() {
       <section className="final-cta">
         <h2>Don’t see your industry? The Field Services module adapts to any mobile workforce.</h2>
         <div className="hero-ctas" style={{ marginTop: 20 }}>
-          <Link href="/signup" className="btn">Start Free Demo</Link>
+          <Link href="/signup" className="btn">Get Started</Link>
         </div>
       </section>
     </main>

@@ -3,41 +3,42 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { isAuthed, logout } from '../lib/api';
+import { SofilicLogo } from './Logo';
 
 const SECTIONS: { title: string; links: { href: string; label: string; ico: string }[] }[] = [
   {
     title: 'Operate',
     links: [
-      { href: '/dashboard', label: 'Dashboard', ico: '🏠' },
-      { href: '/pipeline', label: 'Pipeline', ico: '📇' },
-      { href: '/workforce', label: 'AI Workforce', ico: '🤖' },
-      { href: '/dispatch', label: 'Dispatch', ico: '🚚' },
-      { href: '/jobs', label: 'Field Team', ico: '📱' },
-      { href: '/portal', label: 'Customer Portal', ico: '🏡' },
+      { href: '/dashboard', label: 'Dashboard', ico: '⌘' },
+      { href: '/pipeline', label: 'Pipeline', ico: '▤' },
+      { href: '/workforce', label: 'AI Workforce', ico: '✦' },
+      { href: '/dispatch', label: 'Dispatch', ico: '➤' },
+      { href: '/jobs', label: 'Field Team', ico: '▣' },
+      { href: '/portal', label: 'Customer Portal', ico: '◉' },
     ],
   },
   {
     title: 'Grow',
     links: [
-      { href: '/revenue', label: 'Revenue', ico: '💳' },
-      { href: '/analytics', label: 'Analytics', ico: '📊' },
-      { href: '/executive', label: 'Executive Briefing', ico: '🧠' },
+      { href: '/revenue', label: 'Revenue', ico: '◈' },
+      { href: '/analytics', label: 'Analytics', ico: '∿' },
+      { href: '/executive', label: 'Executive Briefing', ico: '❖' },
     ],
   },
   {
     title: 'Automate',
     links: [
-      { href: '/automations', label: 'Automations', ico: '⚙️' },
-      { href: '/workflows', label: 'Workflows', ico: '🔀' },
-      { href: '/marketplace', label: 'Marketplace', ico: '🧩' },
+      { href: '/automations', label: 'Automations', ico: '⟳' },
+      { href: '/workflows', label: 'Workflows', ico: '⇶' },
+      { href: '/marketplace', label: 'Marketplace', ico: '▦' },
     ],
   },
   {
     title: 'Manage',
     links: [
-      { href: '/notifications', label: 'Notifications', ico: '🔔' },
-      { href: '/billing', label: 'Billing', ico: '🧾' },
-      { href: '/settings', label: 'Settings', ico: '🛠️' },
+      { href: '/notifications', label: 'Notifications', ico: '◔' },
+      { href: '/billing', label: 'Billing', ico: '▭' },
+      { href: '/settings', label: 'Settings', ico: '⚙' },
     ],
   },
 ];
@@ -70,13 +71,8 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <aside className="sidebar">
-      <Link href="/" className="brand">
-        <span className="brand-mark">⚡</span>
-        <span>
-          <span className="brand-name">AI Ops Workforce</span>
-          <br />
-          <span className="brand-sub">Command Center</span>
-        </span>
+      <Link href="/" className="brand" style={{ textDecoration: 'none' }}>
+        <SofilicLogo size={34} sub="Sofilic OS" animated />
       </Link>
       <nav className="nav">
         {SECTIONS.map((s) => (
@@ -109,7 +105,7 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
           className="theme-toggle"
           style={{ marginTop: 8, textAlign: 'center', textDecoration: 'none', display: 'block' }}
         >
-          🔑 Sign in
+          Sign in
         </Link>
       )}
     </aside>
