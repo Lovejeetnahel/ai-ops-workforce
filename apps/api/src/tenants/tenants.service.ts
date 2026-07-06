@@ -18,8 +18,31 @@ export class TenantsService {
     private readonly automation: AutomationService,
   ) {}
 
-  async provision(dto: { name: string; ownerEmail: string; ownerPassword: string; industryModule: IndustryModule }) {
+  async provision(dto: {
+    name: string;
+    ownerEmail: string;
+    ownerPassword: string;
+    industryModule: IndustryModule;
+    presetKey?: string;
+    country?: string;
+    businessSize?: string;
+    teamSize?: string;
+  }) {
     const slug = dto.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+    // Phase 1 presets: onboarding answers land in Tenant.settings (Json) — no
+    // schema change. presetKey drives per-industry nav/vocabulary at runtime.
+    const settings =
+      dto.presetKey || dto.country || dto.businessSize || dto.teamSize
+        ? {
+            presetKey: dto.presetKey ?? null,
+            onboarding: {
+              country: dto.country ?? null,
+              businessSize: dto.businessSize ?? null,
+              teamSize: dto.teamSize ?? null,
+            },
+          }
+        : undefined;
 
     // Tenant + owner created outside tenant context (base client).
     const tenant = await this.prisma.tenant.create({
@@ -27,6 +50,7 @@ export class TenantsService {
         name: dto.name,
         slug,
         industryModule: dto.industryModule,
+        ...(settings ? { settings } : {}),
         users: {
           create: {
             email: dto.ownerEmail,

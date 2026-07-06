@@ -3,6 +3,7 @@ import { INDUSTRY_MODULES } from './industries';
 
 export * from './types';
 export { INDUSTRY_MODULES } from './industries';
+export * from './presets';
 
 /** Resolve a tenant's module config. Throws on unknown key (fail loud). */
 export function getModuleConfig(key: IndustryKey): IndustryModuleConfig {

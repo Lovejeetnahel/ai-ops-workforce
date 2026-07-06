@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { IsArray, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
 import { IndustryModule, UserRole } from '@prisma/client';
-import { listModules } from '@aiow/config';
+import { listModules, listPresets } from '@aiow/config';
 import { RolesGuard } from '../common/rbac/roles.guard';
 import { Roles } from '../common/rbac/roles.decorator';
 import { TenantsService } from './tenants.service';
@@ -11,6 +11,11 @@ class CreateTenantDto {
   @IsString() ownerEmail: string;
   @IsString() ownerPassword: string;
   @IsEnum(IndustryModule) industryModule: IndustryModule;
+  // Phase 1 onboarding fields — all optional so existing callers keep working.
+  @IsOptional() @IsString() presetKey?: string;
+  @IsOptional() @IsString() country?: string;
+  @IsOptional() @IsString() businessSize?: string;
+  @IsOptional() @IsString() teamSize?: string;
 }
 
 class CreateStaffDto {
@@ -36,6 +41,18 @@ export class TenantsController {
   @Get('modules')
   modules() {
     return listModules().map((m) => ({ key: m.key, label: m.label, tagline: m.tagline }));
+  }
+
+  /** Industry presets (Phase 1): the full signup catalog with engine mapping. */
+  @Get('presets')
+  presets() {
+    return listPresets().map((p) => ({
+      key: p.key,
+      engine: p.engine,
+      label: p.label,
+      tagline: p.tagline,
+      icon: p.icon,
+    }));
   }
 
   @Get('me')

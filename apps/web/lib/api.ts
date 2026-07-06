@@ -38,9 +38,19 @@ export const api = {
   // auth + onboarding
   login: (email: string, password: string) =>
     request<{ accessToken: string; user: any }>(`/auth/login`, { method: 'POST', body: JSON.stringify({ email, password }) }),
-  signup: (name: string, ownerEmail: string, ownerPassword: string, industryModule: string) =>
-    request<any>(`/tenants`, { method: 'POST', body: JSON.stringify({ name, ownerEmail, ownerPassword, industryModule }) }),
+  signup: (body: {
+    name: string;
+    ownerEmail: string;
+    ownerPassword: string;
+    industryModule: string;
+    presetKey?: string;
+    country?: string;
+    businessSize?: string;
+    teamSize?: string;
+  }) => request<any>(`/tenants`, { method: 'POST', body: JSON.stringify(body) }),
   industryModules: () => request<{ key: string; label: string; tagline: string }[]>(`/tenants/modules`),
+  industryPresets: () =>
+    request<{ key: string; engine: string; label: string; tagline: string; icon: string }[]>(`/tenants/presets`),
 
   // crm
   moduleConfig: () => request<any>(`/config/module`),

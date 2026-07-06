@@ -1,16 +1,29 @@
 import Link from 'next/link';
 
-const INDUSTRIES = [
-  { ico: '🛡️', name: 'Security', desc: 'Guard scheduling, patrol dispatch, incident reporting and client site portals.', points: ['Shift & patrol dispatch', 'Incident reports with audit trail', 'Client site portal'] },
-  { ico: '🧹', name: 'Cleaning', desc: 'Recurring job scheduling, crew routing, quality checklists and instant rebooking.', points: ['Recurring schedules', 'Crew route optimization', 'Post-clean review requests'] },
-  { ico: '❄️', name: 'HVAC', desc: 'Emergency fast-track dispatch, seasonal tune-up campaigns and quote-to-invoice flow.', points: ['Emergency dispatch', 'Seasonal re-engagement', 'Equipment history per address'] },
-  { ico: '🏠', name: 'Roofing', desc: 'Inspection-to-quote pipeline, weather-aware scheduling and progress photos for customers.', points: ['Inspection pipeline', 'Photo documentation', 'Insurance-ready reports'] },
-  { ico: '🏢', name: 'Property Management', desc: 'Tenant requests, vendor dispatch, unit history and owner reporting in one place.', points: ['Tenant request portal', 'Vendor dispatch', 'Owner statements'] },
-  { ico: '🔍', name: 'Inspection', desc: 'Booking, checklists, report generation and follow-up scheduling for inspectors.', points: ['Checklist templates', 'Auto report delivery', 'Re-inspection scheduling'] },
-  { ico: '🌿', name: 'Landscaping', desc: 'Route-based crews, seasonal contracts, weather rescheduling and upsell prompts.', points: ['Route-day planning', 'Seasonal contracts', 'Upsell recommendations'] },
-  { ico: '🔧', name: 'Appliance Repair', desc: 'Parts-aware scheduling, diagnostic AI copilot and warranty tracking.', points: ['Diagnostic copilot', 'Parts & warranty tracking', 'Same-day dispatch'] },
-  { ico: '🚐', name: 'Field Services', desc: 'The general-purpose module: any mobile workforce with jobs, zones and skills.', points: ['Skill/zone dispatch', 'Time & travel tracking', 'Custom pipelines'] },
-  { ico: '🏡', name: 'Home Services', desc: 'Multi-trade operators running plumbing, electrical and handyman under one roof.', points: ['Multi-trade dispatch', 'Cross-sell automation', 'Unified customer history'] },
+/** Phase 1 catalog: 14 field-service trades live now, plus the two other live engines. */
+const LIVE_NOW = [
+  { ico: '❄️', name: 'HVAC', desc: 'Emergency triage, seasonal tune-up campaigns and equipment history per home.' },
+  { ico: '🔧', name: 'Plumbing', desc: 'From burst-pipe emergency to paid invoice without a missed call.' },
+  { ico: '⚡', name: 'Electrical', desc: 'Service calls and project quotes with permit tracking built in.' },
+  { ico: '🏠', name: 'Roofing', desc: 'Inspection-to-insurance-to-install pipeline with photo reports.' },
+  { ico: '🧹', name: 'Cleaning Services', desc: 'Recurring schedules, crew routing and quality checklists.' },
+  { ico: '🌿', name: 'Landscaping', desc: 'Seasonal contracts, route days and weather rescheduling.' },
+  { ico: '🐜', name: 'Pest Control', desc: 'Treatment plans, chemical logs and quarterly recurring billing.' },
+  { ico: '🔑', name: 'Locksmith', desc: 'Win the lockout call — AI answers, quotes and dispatches in seconds.' },
+  { ico: '🔌', name: 'Appliance Repair', desc: 'Diagnose, order parts, return visit — tracked end to end.' },
+  { ico: '🚪', name: 'Garage Door', desc: 'Emergency repairs and install projects booked while you sleep.' },
+  { ico: '🎨', name: 'Painting', desc: 'Estimates, crews and follow-ups that fill your calendar.' },
+  { ico: '💦', name: 'Pressure Washing', desc: 'Quote fast, book routes, rebook every season automatically.' },
+  { ico: '🪟', name: 'Window Cleaning', desc: 'Recurring residential routes and commercial contracts.' },
+  { ico: '🚛', name: 'Junk Removal', desc: 'Photo quotes, same-day dispatch and instant payment.' },
+  { ico: '🏢', name: 'Property Management', desc: 'Tenant requests, vendor dispatch, unit history and owner reporting.' },
+  { ico: '💼', name: 'Service Agencies', desc: 'Client work, cases and retainers for professional service firms.' },
+];
+
+const COMING = [
+  ['💇', 'Hair Salons & Barbershops'], ['💅', 'Nail Salons & Spas'], ['🚗', 'Auto Repair & Detailing'],
+  ['🐕', 'Pet Grooming & Boarding'], ['🏋️', 'Gyms & Studios'], ['🩺', 'Clinics & Wellness'],
+  ['🛡️', 'Security Companies'], ['⚖️', 'Law & Accounting'], ['🏡', 'Real Estate'], ['🍽️', 'Restaurants & Cafes'],
 ];
 
 export default function IndustriesPage() {
@@ -18,33 +31,45 @@ export default function IndustriesPage() {
     <main className="mk-main">
       <section className="hero" style={{ padding: '64px 0 20px' }}>
         <h1 style={{ fontSize: 'clamp(30px, 5vw, 48px)' }}>
-          Your industry, <span className="grad-text">your vocabulary</span>
+          Pick your industry. <span className="grad-text">Sofilic does the rest.</span>
         </h1>
         <p className="hero-sub">
-          Industry modules change the pipeline stages, intake forms, templates and automations —
-          so the platform speaks your language on day one.
+          Choose your business type at signup and Sofilic configures the pipeline, vocabulary,
+          documents and automations for how your industry actually works.
         </p>
       </section>
 
       <section className="mk-section" style={{ paddingTop: 30 }}>
-        <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
-          {INDUSTRIES.map((ind) => (
-            <div className="panel feature-card" key={ind.name}>
+        <div className="mk-section-head" style={{ marginBottom: 28 }}>
+          <span className="mk-kicker">Live today</span>
+          <h2 className="mk-h2" style={{ fontSize: 'clamp(22px, 3vw, 30px)' }}>16 industries, ready at signup</h2>
+        </div>
+        <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
+          {LIVE_NOW.map((ind) => (
+            <div className="panel lift feature-card" key={ind.name}>
               <div className="feature-ico">{ind.ico}</div>
               <h4>{ind.name}</h4>
-              <p style={{ marginBottom: 12 }}>{ind.desc}</p>
-              {ind.points.map((p) => (
-                <div key={p} style={{ fontSize: 12.5, color: 'var(--muted)', padding: '3px 0' }}>
-                  <span style={{ color: 'var(--green)', marginRight: 8 }}>✓</span>{p}
-                </div>
-              ))}
+              <p>{ind.desc}</p>
             </div>
           ))}
         </div>
       </section>
 
+      <section className="mk-section" style={{ paddingTop: 10 }}>
+        <div className="mk-section-head" style={{ marginBottom: 28 }}>
+          <span className="mk-kicker">Rolling out next</span>
+          <h2 className="mk-h2" style={{ fontSize: 'clamp(22px, 3vw, 30px)' }}>The rest of local business</h2>
+          <p className="muted">Appointments, coverage and professional-service industries land in the next waves.</p>
+        </div>
+        <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
+          {COMING.map(([ico, name]) => (
+            <div className="industry-pill" key={name}><span>{ico}</span> {name}</div>
+          ))}
+        </div>
+      </section>
+
       <section className="final-cta">
-        <h2>Don’t see your industry? The Field Services module adapts to any mobile workforce.</h2>
+        <h2>Don’t see your trade? The general Field Services setup adapts to any mobile workforce.</h2>
         <div className="hero-ctas" style={{ marginTop: 20 }}>
           <Link href="/signup" className="btn">Get Started</Link>
         </div>

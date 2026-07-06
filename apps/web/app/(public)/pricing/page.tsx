@@ -2,25 +2,43 @@ import Link from 'next/link';
 
 const PLANS = [
   {
-    name: 'Starter', price: 99, seats: '3 seats', popular: false,
-    blurb: 'For solo operators and small crews getting off spreadsheets.',
-    features: ['CRM & pipeline', 'Scheduling & calendar', 'Quotes & invoicing', 'Payments (Stripe)', '1 AI employee', 'Customer portal', 'Email support'],
+    name: 'Starter', price: 79, popular: false,
+    blurb: 'Solo operators getting off spreadsheets and missed calls.',
+    features: ['CRM & industry pipeline', 'Calendar & scheduling', 'Quotes, invoicing & payments', 'Reviews (basic)', 'Customer portal', '1 AI employee', '3 staff users'],
   },
   {
-    name: 'Pro', price: 299, seats: '15 seats', popular: true,
-    blurb: 'For growing operations that want the full AI workforce.',
-    features: ['Everything in Starter', 'Full AI workforce (8 employees)', 'Smart dispatch', 'Field team app + copilot', 'Analytics & executive briefing', 'Automation workflows', 'Marketplace apps', 'Priority support'],
+    name: 'Growth', price: 149, popular: true,
+    blurb: 'Small teams that want the phone answered 24/7.',
+    features: ['Everything in Starter', 'AI voice receptionist (300 min)', 'Reviews Pro + AI replies', 'Marketing & social studio', '3 AI employees', '10 staff users'],
   },
   {
-    name: 'Enterprise', price: 999, seats: '100 seats', popular: false,
-    blurb: 'For multi-crew and multi-location operators with compliance needs.',
-    features: ['Everything in Pro', 'Multi-company management', 'Public API + webhooks', 'Advanced compliance & audit', 'Custom industry module', 'Dedicated success manager', 'SLA & priority onboarding'],
+    name: 'Business', price: 299, popular: false,
+    blurb: 'Established operations running the full AI workforce.',
+    features: ['Everything in Growth', 'Full AI workforce (8 employees)', 'Executive briefing', 'Inventory + Fleet add-ons', 'Website & landing pages', 'Voice 1,000 min', '25 staff users'],
+  },
+  {
+    name: 'Pro', price: 499, popular: false,
+    blurb: 'Multi-crew companies with serious operational depth.',
+    features: ['Everything in Business', 'Industry depth packs', 'HR & training workspaces', 'Client portal variants', 'Public API access', '50 staff users'],
+  },
+  {
+    name: 'Enterprise', price: 999, popular: false, custom: true,
+    blurb: 'Multi-location groups and franchises.',
+    features: ['Everything in Pro', 'Multi-location management', 'SSO & compliance pack', 'Custom industry module', 'Dedicated success manager', 'SLA & priority onboarding'],
   },
 ];
 
+const ADDONS = [
+  { name: 'Extra AI employees', price: 'from $29/mo each', desc: 'Collections AI, Recruiting AI and more — each reports its ROI on the leaderboard.' },
+  { name: 'Voice minutes', price: '$0.20/min after allowance', desc: 'A fraction of a human answering service, available 24/7.' },
+  { name: 'Reviews Pro (standalone)', price: '$49/mo', desc: 'AI replies, reputation score and multi-source ingestion — the Podium replacement.' },
+  { name: 'Marketing Pro', price: '$49/mo', desc: 'Multi-step journeys and revenue attribution from the value ledger.' },
+  { name: 'Website & custom domain', price: '$29/mo', desc: 'Your booking page, reviews and brand on your own domain.' },
+];
+
 const FAQ = [
-  { q: 'Is there a free trial?', a: 'Yes — Get Started provisions a full workspace with your industry module. No credit card required to explore.' },
-  { q: 'What counts as a seat?', a: 'Any staff login: owners, admins, dispatchers and field techs. Customers using the portal are free and unlimited.' },
+  { q: 'Is there a free trial?', a: 'Yes — Get Started provisions a full workspace configured for your industry. No credit card required to explore.' },
+  { q: 'What counts as a staff user?', a: 'Owners, admins, dispatchers and field techs. Customers using the portal are free and unlimited.' },
   { q: 'Can I change plans later?', a: 'Upgrade or downgrade any time from Billing; changes prorate automatically.' },
   { q: 'What are AI employees?', a: 'Installable agents (Sales AI, Collections AI, Receptionist, Executive AI…) that do real work and report their ROI on a leaderboard.' },
   { q: 'How do payments work?', a: 'Payments run on Stripe. Invoices carry pay links, and settlements reconcile idempotently — no double-booked revenue.' },
@@ -32,24 +50,47 @@ export default function PricingPage() {
     <main className="mk-main">
       <section className="hero" style={{ padding: '64px 0 20px' }}>
         <h1 style={{ fontSize: 'clamp(30px, 5vw, 48px)' }}>
-          Simple pricing, <span className="grad-text">serious leverage</span>
+          One subscription, <span className="grad-text">not seven</span>
         </h1>
-        <p className="hero-sub">Every plan includes the core OS. Higher tiers unlock the AI workforce, analytics and the platform surface.</p>
+        <p className="hero-sub">
+          Sofilic replaces the booking tool, the review tool, the texting tool, the answering service and
+          the marketing app — priced well under what those cost apart.
+        </p>
       </section>
 
       <section className="mk-section" style={{ paddingTop: 24 }}>
-        <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', maxWidth: 1020, margin: '0 auto' }}>
+        <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
           {PLANS.map((p) => (
             <div className={`panel plan ${p.popular ? 'popular' : ''}`} key={p.name}>
               {p.popular && <span className="pop-badge">Most popular</span>}
               <h3 style={{ margin: 0 }}>{p.name}</h3>
-              <div className="price">${p.price}<span className="muted" style={{ fontSize: 14 }}>/mo</span></div>
-              <div className="muted" style={{ marginBottom: 4 }}>{p.seats}</div>
+              <div className="price">
+                ${p.price}{(p as any).custom ? '+' : ''}
+                <span className="muted" style={{ fontSize: 14 }}>/mo</span>
+              </div>
               <p className="muted" style={{ fontSize: 13, minHeight: 40 }}>{p.blurb}</p>
               <ul>
                 {p.features.map((f) => <li key={f}>{f}</li>)}
               </ul>
-              <Link href="/signup" className={p.popular ? 'btn' : 'btn ghost'}>Start with {p.name}</Link>
+              <Link href="/signup" className={p.popular ? 'btn' : 'btn ghost'}>Get Started</Link>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="mk-section" style={{ paddingTop: 10 }}>
+        <div className="mk-section-head" style={{ marginBottom: 28 }}>
+          <span className="mk-kicker">Add-ons</span>
+          <h2 className="mk-h2" style={{ fontSize: 'clamp(22px, 3vw, 30px)' }}>Grow the stack as you grow</h2>
+        </div>
+        <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
+          {ADDONS.map((a) => (
+            <div className="panel" key={a.name}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                <strong style={{ fontSize: 14 }}>{a.name}</strong>
+                <span className="tag">{a.price}</span>
+              </div>
+              <p className="muted" style={{ margin: '8px 0 0', fontSize: 13 }}>{a.desc}</p>
             </div>
           ))}
         </div>
@@ -71,7 +112,7 @@ export default function PricingPage() {
       </section>
 
       <section className="final-cta">
-        <h2>Launch your AI operations system in days, not months.</h2>
+        <h2>Run your entire business with AI.</h2>
         <div className="hero-ctas" style={{ marginTop: 20 }}>
           <Link href="/signup" className="btn">Get Started</Link>
         </div>

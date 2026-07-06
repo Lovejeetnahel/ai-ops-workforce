@@ -2,10 +2,13 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { isAuthed, logout } from '../lib/api';
+import { api, isAuthed, logout } from '../lib/api';
 import { SofilicLogo } from './Logo';
 
-const SECTIONS: { title: string; links: { href: string; label: string; ico: string }[] }[] = [
+type NavSection = { title: string; links: { href: string; label: string; ico: string }[] };
+
+/** Default nav for tenants without an industry preset (and offline/demo mode). */
+const SECTIONS: NavSection[] = [
   {
     title: 'Operate',
     links: [
@@ -26,6 +29,20 @@ const SECTIONS: { title: string; links: { href: string; label: string; ico: stri
     ],
   },
   {
+    title: 'Marketing',
+    links: [
+      { href: '/reviews', label: 'Reviews', ico: '★' },
+      { href: '/marketing', label: 'Marketing Studio', ico: '◬' },
+    ],
+  },
+  {
+    title: 'Communication',
+    links: [
+      { href: '/inbox', label: 'Inbox', ico: '▤' },
+      { href: '/notifications', label: 'Notifications', ico: '◔' },
+    ],
+  },
+  {
     title: 'Automate',
     links: [
       { href: '/automations', label: 'Automations', ico: '⟳' },
@@ -36,7 +53,6 @@ const SECTIONS: { title: string; links: { href: string; label: string; ico: stri
   {
     title: 'Manage',
     links: [
-      { href: '/notifications', label: 'Notifications', ico: '◔' },
       { href: '/billing', label: 'Billing', ico: '▭' },
       { href: '/settings', label: 'Settings', ico: '⚙' },
     ],
@@ -49,12 +65,27 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const router = useRouter();
   const [theme, setTheme] = useState('dark');
   const [authed, setAuthed] = useState(false);
+  const [sections, setSections] = useState<NavSection[]>(SECTIONS);
+  const [brandSub, setBrandSub] = useState('Sofilic OS');
 
   useEffect(() => {
     const saved = window.localStorage.getItem('aiow_theme') ?? 'dark';
     setTheme(saved);
     document.documentElement.setAttribute('data-theme', saved);
     setAuthed(isAuthed());
+    // Phase 1: industry preset drives the nav. Falls back to the default
+    // sections when the tenant has no preset or the API is unreachable.
+    if (isAuthed()) {
+      api
+        .moduleConfig()
+        .then((cfg) => {
+          if (cfg?.preset?.navGroups?.length) {
+            setSections(cfg.preset.navGroups);
+            setBrandSub(cfg.preset.label ?? 'Sofilic OS');
+          }
+        })
+        .catch(() => {});
+    }
   }, []);
 
   const toggle = () => {
@@ -72,10 +103,10 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <aside className="sidebar">
       <Link href="/" className="brand" style={{ textDecoration: 'none' }}>
-        <SofilicLogo size={34} sub="Sofilic OS" animated />
+        <SofilicLogo size={34} sub={brandSub} animated />
       </Link>
       <nav className="nav">
-        {SECTIONS.map((s) => (
+        {sections.map((s) => (
           <div key={s.title}>
             <div className="nav-section">{s.title}</div>
             {s.links.map((l) => (
