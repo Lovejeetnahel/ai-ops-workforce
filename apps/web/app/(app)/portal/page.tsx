@@ -1,31 +1,43 @@
 /**
- * CUSTOMER PORTAL. The end customer / tenant-resident / applicant authenticates
- * with a scoped portal token and sees only their own bookings, conversation
- * history, and documents (invoices/quotes/forms to e-sign or pay).
+ * Preview of the customer-facing portal. Customers authenticate with a scoped
+ * portal link and see their own bookings, documents and conversation history.
+ * This route shows the owner what that experience looks like structurally —
+ * clearly labeled as a preview, never presented as a real customer's data.
  */
-export default function CustomerPortal() {
+export default function CustomerPortalPreview() {
   return (
     <>
       <div className="topbar">
-        <div><h2 style={{ margin: 0 }}>Welcome back, Jordan</h2><span className="muted">Acme HVAC & Plumbing</span></div>
-        <span className="badge">Customer portal</span>
+        <div>
+          <h2 style={{ margin: 0 }}>Customer Portal</h2>
+          <span className="muted">This is a preview of what your customers see when they sign in</span>
+        </div>
+        <span className="badge">Preview</span>
       </div>
       <div className="grid">
         <div className="panel">
           <h3>Upcoming visit</h3>
-          <div className="kpi" style={{ fontSize: 20 }}>Today · 10:30 AM</div>
-          <p className="muted">Emergency A/C repair — Tina Tech is on the way.</p>
-          <button className="btn">Reschedule</button>
+          <div className="empty-state" style={{ padding: '24px 16px' }}>
+            <div className="e-ico" style={{ width: 40, height: 40, fontSize: 18 }}>◈</div>
+            <h4 style={{ fontSize: 13.5 }}>No upcoming visits</h4>
+            <p style={{ fontSize: 12.5 }}>A customer&rsquo;s next booking shows here, with a reschedule option.</p>
+          </div>
         </div>
         <div className="panel">
           <h3>Documents</h3>
-          <div className="agent-row"><span style={{ flex: 1 }}>Quote #4820</span><span className="tag">Accepted</span></div>
-          <div className="agent-row"><span style={{ flex: 1 }}>Invoice #4821</span><button className="btn" style={{ padding: '4px 10px' }}>Pay $240</button></div>
+          <div className="empty-state" style={{ padding: '24px 16px' }}>
+            <div className="e-ico" style={{ width: 40, height: 40, fontSize: 18 }}>▤</div>
+            <h4 style={{ fontSize: 13.5 }}>No documents yet</h4>
+            <p style={{ fontSize: 12.5 }}>Quotes and invoices with pay links appear here for the customer.</p>
+          </div>
         </div>
         <div className="panel">
           <h3>Conversation</h3>
-          <p className="muted">You: “My A/C stopped working”</p>
-          <p className="muted">AI: “Got it — booked an emergency visit for today at 10:30 AM. ✅”</p>
+          <div className="empty-state" style={{ padding: '24px 16px' }}>
+            <div className="e-ico" style={{ width: 40, height: 40, fontSize: 18 }}>▤</div>
+            <h4 style={{ fontSize: 13.5 }}>No messages yet</h4>
+            <p style={{ fontSize: 12.5 }}>The customer&rsquo;s conversation history with your business appears here.</p>
+          </div>
         </div>
       </div>
     </>

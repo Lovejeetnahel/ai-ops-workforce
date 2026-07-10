@@ -51,11 +51,20 @@ export const api = {
   industryModules: () => request<{ key: string; label: string; tagline: string }[]>(`/tenants/modules`),
   industryPresets: () =>
     request<{ key: string; engine: string; label: string; tagline: string; icon: string }[]>(`/tenants/presets`),
+  inviteStaff: (body: { email: string; password: string; name: string; role: string }) =>
+    request<any>(`/tenants/users`, { method: 'POST', body: JSON.stringify(body) }),
 
   // crm
   moduleConfig: () => request<any>(`/config/module`),
   board: () => request<{ stage: string; leads: any[] }[]>(`/leads/board`),
   moveStage: (id: string, stage: string) => request(`/leads/${id}/stage`, { method: 'PATCH', body: JSON.stringify({ stage }) }),
+  companies: (q?: string) => request<any[]>(`/companies${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  createCompany: (body: { name: string; domain?: string; phone?: string; email?: string; website?: string }) =>
+    request<any>(`/companies`, { method: 'POST', body: JSON.stringify(body) }),
+  tasks: (status?: string) => request<any[]>(`/activities/tasks${status ? `?status=${status}` : ''}`),
+  createTask: (body: { type: string; title: string; body?: string; dueAt?: string; leadId?: string }) =>
+    request<any>(`/activities`, { method: 'POST', body: JSON.stringify(body) }),
+  completeTask: (id: string) => request(`/activities/${id}/complete`, { method: 'POST' }),
 
   // enterprise analytics + intelligence
   analytics: (type: string) => request<any>(`/analytics/dashboard/${type}`),
@@ -65,6 +74,21 @@ export const api = {
   employees: () => request<any[]>(`/employees`),
   leaderboard: () => request<any[]>(`/employees/leaderboard`),
   runEmployee: (key: string, type: string) => request(`/employees/${key}/run`, { method: 'POST', body: JSON.stringify({ type }) }),
+
+  // automation
+  automationRules: () => request<any[]>(`/automation/rules`),
+  toggleAutomationRule: (id: string, enabled: boolean) =>
+    request(`/automation/rules/${id}`, { method: 'PATCH', body: JSON.stringify({ enabled }) }),
+  workflows: () => request<any[]>(`/workflows`),
+  workflowRuns: (id: string) => request<any[]>(`/workflows/${id}/runs`),
+
+  // payments
+  documents: (type?: string) => request<any[]>(`/documents${type ? `?type=${type}` : ''}`),
+  paymentsList: (status?: string) => request<any[]>(`/payments${status ? `?status=${status}` : ''}`),
+
+  // field operations
+  jobs: (status?: string) => request<any[]>(`/jobs${status ? `?status=${status}` : ''}`),
+  updateJobStatus: (id: string, status: string) => request(`/jobs/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
 
   // marketplace + billing
   marketplace: (type?: string) => request<any[]>(`/marketplace${type ? `?type=${type}` : ''}`),
