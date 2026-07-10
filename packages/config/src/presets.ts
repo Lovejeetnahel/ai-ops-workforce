@@ -148,12 +148,12 @@ export const INDUSTRY_PRESETS: Record<string, IndustryPreset> = {
   junk_removal: fieldPreset('junk_removal', 'Junk Removal', '🚛', 'Photo quotes, same-day dispatch, instant payment.', 'Pickup Requests'),
 
   // ── Existing engines kept addressable as presets (backward compatible) ──
-  field_services: fieldPreset('field_services', 'Field Services (General)', '🚐', 'Any mobile workforce: jobs, zones, skills, dispatch.', 'Pipeline'),
+  field_services: fieldPreset('field_services', 'General Field Services', '🚐', 'Any mobile workforce: jobs, zones, skills, dispatch.', 'Pipeline'),
   property_management: {
     key: 'property_management',
     engine: 'PROPERTY_MANAGEMENT',
-    label: 'Property Management',
-    tagline: 'Tenant requests, vendor dispatch and owner reporting in one place.',
+    label: 'Real Estate',
+    tagline: 'Leasing, property management, brokerages and investors — tenant requests, vendor dispatch and owner reporting in one place.',
     icon: '🏢',
     navGroups: [
       {
@@ -178,8 +178,8 @@ export const INDUSTRY_PRESETS: Record<string, IndustryPreset> = {
   service_agencies: {
     key: 'service_agencies',
     engine: 'SERVICE_AGENCIES',
-    label: 'Service Agency',
-    tagline: 'Client work, cases and retainers for service firms.',
+    label: 'Professional Services',
+    tagline: 'Client work, cases and retainers for law firms, accountants, consultants and agencies.',
     icon: '💼',
     navGroups: [
       {

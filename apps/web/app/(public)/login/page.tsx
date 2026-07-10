@@ -57,7 +57,7 @@ export default function LoginPage() {
           </button>
         </form>
         <div className="auth-foot">
-          New here? <Link href="/signup">Create your workspace</Link>
+          New here? <Link href="/signup">Create your account</Link>
         </div>
       </div>
     </div>

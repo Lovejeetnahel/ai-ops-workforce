@@ -1,12 +1,37 @@
 'use client';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { SidebarNav } from '../../components/Sidebar';
 import { SofilicMark } from '../../components/Logo';
+import { AccountSwitcher } from '../../components/AccountSwitcher';
+import { UserMenu } from '../../components/UserMenu';
+import { NotificationsMenu } from '../../components/NotificationsMenu';
+import { CommandPalette } from '../../components/CommandPalette';
 
-/** SOFILIC OS shell: desktop sidebar, OS top header, mobile drawer. */
+const PAGE_TITLES: Record<string, string> = {
+  '/dashboard': 'Dashboard',
+  '/crm': 'CRM',
+  '/sales': 'Sales',
+  '/conversations': 'Conversations',
+  '/voice-ai': 'Voice AI',
+  '/marketing': 'Marketing',
+  '/social': 'Social Media',
+  '/websites': 'Websites',
+  '/seo': 'SEO',
+  '/automation': 'Automation',
+  '/payments': 'Payments',
+  '/apps': 'Apps',
+  '/settings': 'Settings',
+};
+
+/** SOFILIC OS shell: desktop sidebar, top header (title, switcher, search,
+ * notifications, profile), mobile drawer. Used by all 13 approved modules. */
 export default function AppLayout({ children }: { children: React.ReactNode }) {
+  const path = usePathname();
   const [drawer, setDrawer] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [userName, setUserName] = useState<string | null>(null);
 
   useEffect(() => {
@@ -15,7 +40,30 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       if (u?.name) setUserName(String(u.name).split(' ')[0]);
       else if (u?.email) setUserName(String(u.email).split('@')[0]);
     } catch {}
+    const savedCollapse = window.localStorage.getItem('aiow_sidebar_collapsed');
+    if (savedCollapse === '1') setCollapsed(true);
   }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaletteOpen(true);
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
+  const toggleCollapse = () => {
+    setCollapsed((c) => {
+      const next = !c;
+      window.localStorage.setItem('aiow_sidebar_collapsed', next ? '1' : '0');
+      return next;
+    });
+  };
+
+  const title = PAGE_TITLES[path] ?? 'Sofilic';
 
   return (
     <>
@@ -24,7 +72,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <SofilicMark size={28} />
           <span className="sofilic-name" style={{ fontSize: 13 }}>SOFILIC</span>
         </Link>
-        <button className="hamburger" onClick={() => setDrawer(true)} aria-label="Open menu">☰</button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <NotificationsMenu />
+          <button className="hamburger" onClick={() => setDrawer(true)} aria-label="Open menu">☰</button>
+        </div>
       </div>
 
       {drawer && (
@@ -36,17 +87,30 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </>
       )}
 
-      <div className="app">
-        <SidebarNav />
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+
+      <div className={collapsed ? 'app collapsed' : 'app'}>
+        <SidebarNav collapsed={collapsed} onToggleCollapse={toggleCollapse} />
         <div className="main">
           <div className="os-topbar">
             <div className="os-greeting">
-              <h2>Welcome back{userName ? `, ${userName}` : ''} 👋</h2>
-              <span className="muted">Sofilic OS · Business Operating System</span>
+              <div className="shell-title-row">
+                <h2>{userName ? `Welcome back, ${userName}` : title} 👋</h2>
+              </div>
+              <div className="breadcrumb">
+                <span>Sofilic</span>
+                <span className="sep">/</span>
+                <span className="current">{title}</span>
+              </div>
             </div>
             <div className="os-actions">
-              <Link href="/notifications" className="hamburger" aria-label="Notifications" title="Notifications">🔔</Link>
-              <Link href="/dashboard" className="btn sm">Command Center</Link>
+              <AccountSwitcher />
+              <button type="button" className="search-trigger" onClick={() => setPaletteOpen(true)}>
+                🔎 <span className="search-label">Search…</span>
+                <kbd>⌘K</kbd>
+              </button>
+              <NotificationsMenu />
+              <UserMenu />
             </div>
           </div>
           {children}

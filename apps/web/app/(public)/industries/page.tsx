@@ -16,14 +16,14 @@ const LIVE_NOW = [
   { ico: '💦', name: 'Pressure Washing', desc: 'Quote fast, book routes, rebook every season automatically.' },
   { ico: '🪟', name: 'Window Cleaning', desc: 'Recurring residential routes and commercial contracts.' },
   { ico: '🚛', name: 'Junk Removal', desc: 'Photo quotes, same-day dispatch and instant payment.' },
-  { ico: '🏢', name: 'Property Management', desc: 'Tenant requests, vendor dispatch, unit history and owner reporting.' },
-  { ico: '💼', name: 'Service Agencies', desc: 'Client work, cases and retainers for professional service firms.' },
+  { ico: '🏢', name: 'Real Estate', desc: 'Leasing, property management, brokerages and investors — tenant requests, vendor dispatch and owner reporting in one place.' },
+  { ico: '💼', name: 'Professional Services', desc: 'Client work, cases and retainers for law firms, accountants, consultants and agencies.' },
 ];
 
 const COMING = [
   ['💇', 'Hair Salons & Barbershops'], ['💅', 'Nail Salons & Spas'], ['🚗', 'Auto Repair & Detailing'],
   ['🐕', 'Pet Grooming & Boarding'], ['🏋️', 'Gyms & Studios'], ['🩺', 'Clinics & Wellness'],
-  ['🛡️', 'Security Companies'], ['⚖️', 'Law & Accounting'], ['🏡', 'Real Estate'], ['🍽️', 'Restaurants & Cafes'],
+  ['🛡️', 'Security Companies'], ['🍽️', 'Restaurants & Cafes'],
 ];
 
 export default function IndustriesPage() {

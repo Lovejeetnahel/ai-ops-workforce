@@ -40,7 +40,7 @@ const QUOTES = [
 ];
 
 const TRUST = [
-  { ico: '🏰', t: 'Tenant isolation', d: 'Fail-closed row-level scoping on every query — data never crosses tenants.' },
+  { ico: '🏰', t: 'Data isolation', d: 'Fail-closed row-level scoping on every query — your business data never crosses into another account.' },
   { ico: '🔑', t: 'Role-based access', d: 'Owner, Admin, Staff and Customer roles enforced on every route.' },
   { ico: '🗝️', t: 'Scoped API keys', d: 'Per-key scopes and rate limits on the public API.' },
   { ico: '📜', t: 'Audit logs', d: 'Every sensitive action recorded and reviewable.' },
@@ -61,7 +61,7 @@ const FAQ = [
   { q: 'Do we need technical staff?', a: 'No. Sofilic is fully managed. The public API and webhooks are there when you want them, but nothing requires code.' },
   { q: 'What happens to our existing data?', a: 'Leads, customers and job history import via CSV or the API. Your industry module maps them into the right pipeline stages.' },
   { q: 'Can the AI make mistakes?', a: 'Every AI employee runs with a configurable authority level — fully autonomous or approval-required. Every action is logged and auditable.' },
-  { q: 'Is our data safe?', a: 'Tenant isolation is fail-closed at the query layer, credentials are AES-256 encrypted, access is role-gated, and every sensitive action hits the audit log.' },
+  { q: 'Is our data safe?', a: 'Data isolation is fail-closed at the query layer, credentials are AES-256 encrypted, access is role-gated, and every sensitive action hits the audit log.' },
   { q: 'What if we outgrow it?', a: 'Enterprise adds multi-company management, the full API surface, and priority support. The platform scales horizontally — you won’t hit a ceiling.' },
 ];
 
@@ -220,7 +220,7 @@ export default function Landing() {
             <p className="muted" style={{ lineHeight: 1.7, margin: 0 }}>
               Multi-company management, the full public API, custom industry modules, advanced audit
               and compliance controls, dedicated success management and priority onboarding — with the
-              same fail-closed tenant isolation underneath.
+              same fail-closed data isolation underneath.
             </p>
           </div>
           <Link href="/pricing" className="btn">Talk enterprise</Link>

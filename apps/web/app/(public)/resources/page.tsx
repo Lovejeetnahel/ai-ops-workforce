@@ -7,7 +7,7 @@ const GUIDES = [
   { ico: '🚚', t: 'Designing dispatch zones', d: 'Setting up service zones, skills and on-call rotations so smart dispatch makes the right call every time.', tag: 'Guide' },
   { ico: '💳', t: 'Payments & reconciliation', d: 'Connecting Stripe, understanding the value ledger, and why settlements in Sofilic can never double-book.', tag: 'Docs' },
   { ico: '🔌', t: 'Public API reference', d: 'Scoped API keys, rate limits, and the /v1 REST surface for leads, jobs, invoices and account.', tag: 'Docs' },
-  { ico: '🛡️', t: 'Security & compliance overview', d: 'Tenant isolation, RBAC, encrypted credentials, audit logs and GDPR/PIPEDA export — how Sofilic protects your data.', tag: 'Docs' },
+  { ico: '🛡️', t: 'Security & compliance overview', d: 'Data isolation, role-based access, encrypted credentials, audit logs and GDPR/PIPEDA export — how Sofilic protects your business.', tag: 'Docs' },
   { ico: '📊', t: 'Reading your executive briefing', d: 'What the daily AI brief includes, how the 30-day forecast is computed, and how to act on recommendations.', tag: 'Guide' },
 ];
 

@@ -6,14 +6,16 @@ interface Stage { value: string; label: string; color: string; }
 interface Lead { id: string; contact?: { name: string }; serviceType?: string; urgency?: string; location?: string; }
 
 /**
- * The pipeline kanban. Columns come from the tenant's Industry Module Config
- * (`pipeline`), so the SAME component renders "New Request → Scheduled → Completed"
- * for HVAC and "New Inquiry → Retained → Case Filed" for an immigration firm.
- * Falls back to demo data when the API isn't reachable so the shell always renders.
+ * The pipeline kanban. Columns come from the business's Industry Module
+ * Config (`pipeline`), so the SAME component renders "New Request →
+ * Scheduled → Completed" for HVAC and "New Inquiry → Retained → Case Filed"
+ * for a law firm. Shows an honest empty state when the API is unreachable
+ * or the board has no data yet — never fabricated leads.
  */
 export function PipelineBoard() {
   const [stages, setStages] = useState<Stage[]>([]);
   const [board, setBoard] = useState<Record<string, Lead[]>>({});
+  const [status, setStatus] = useState<'loading' | 'ready' | 'unavailable'>('loading');
 
   useEffect(() => {
     (async () => {
@@ -22,23 +24,32 @@ export function PipelineBoard() {
         setStages(config.pipeline.filter((s: any) => !s.hidden));
         const data = await api.board();
         setBoard(Object.fromEntries(data.map((c) => [c.stage, c.leads])));
+        setStatus('ready');
       } catch {
-        // Offline demo fallback.
-        setStages([
-          { value: 'NEW', label: 'New Request', color: '#3b82f6' },
-          { value: 'CONTACTED', label: 'Contacted', color: '#8b5cf6' },
-          { value: 'QUALIFIED', label: 'Quoted', color: '#f59e0b' },
-          { value: 'BOOKED', label: 'Scheduled', color: '#10b981' },
-          { value: 'COMPLETED', label: 'Completed', color: '#22c55e' },
-        ]);
-        setBoard({
-          NEW: [{ id: '1', contact: { name: 'Jordan M.' }, serviceType: 'No A/C', urgency: 'EMERGENCY', location: 'Eastside' }],
-          CONTACTED: [{ id: '2', contact: { name: 'Priya K.' }, serviceType: 'Water heater', location: 'Downtown' }],
-          BOOKED: [{ id: '3', contact: { name: 'Sam R.' }, serviceType: 'Furnace tune-up', location: 'Westside' }],
-        });
+        setStatus('unavailable');
       }
     })();
   }, []);
+
+  if (status === 'unavailable') {
+    return (
+      <div className="empty-state panel">
+        <div className="e-ico">▲</div>
+        <h4>Pipeline unavailable</h4>
+        <p>We couldn&rsquo;t load your pipeline right now. Try refreshing the page.</p>
+      </div>
+    );
+  }
+
+  if (status === 'ready' && stages.every((s) => (board[s.value] ?? []).length === 0)) {
+    return (
+      <div className="empty-state panel">
+        <div className="e-ico">◈</div>
+        <h4>No leads yet</h4>
+        <p>New leads from calls, forms and referrals will appear here as they come in.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="board">

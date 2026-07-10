@@ -42,7 +42,7 @@ const FAQ = [
   { q: 'Can I change plans later?', a: 'Upgrade or downgrade any time from Billing; changes prorate automatically.' },
   { q: 'What are AI employees?', a: 'Installable agents (Sales AI, Collections AI, Receptionist, Executive AI…) that do real work and report their ROI on a leaderboard.' },
   { q: 'How do payments work?', a: 'Payments run on Stripe. Invoices carry pay links, and settlements reconcile idempotently — no double-booked revenue.' },
-  { q: 'Is my data isolated?', a: 'Yes. Every query is tenant-scoped with a fail-closed guard; cross-tenant access is structurally impossible.' },
+  { q: 'Is my data isolated?', a: 'Yes. Every request is scoped to your business with a fail-closed guard — access across accounts is structurally impossible.' },
 ];
 
 export default function PricingPage() {

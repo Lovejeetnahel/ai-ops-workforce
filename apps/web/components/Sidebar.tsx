@@ -49,7 +49,15 @@ const PINNED: NavItem[] = [
 ];
 
 /** The nav column. Rendered in the desktop sidebar and the mobile drawer. */
-export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
+export function SidebarNav({
+  onNavigate,
+  collapsed,
+  onToggleCollapse,
+}: {
+  onNavigate?: () => void;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
+}) {
   const path = usePathname();
   const router = useRouter();
   const [theme, setTheme] = useState('dark');
@@ -108,11 +116,17 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
         {PINNED.map(renderLink)}
       </nav>
       <button className="theme-toggle" onClick={toggle}>
-        {theme === 'dark' ? '☀ Light mode' : '🌙 Dark mode'}
+        {theme === 'dark' ? <span>☀ <span>Light mode</span></span> : <span>🌙 <span>Dark mode</span></span>}
       </button>
+      {onToggleCollapse && (
+        <button className="collapse-btn" onClick={onToggleCollapse} aria-label="Collapse sidebar">
+          {collapsed ? '»' : '«'}
+          <span className="collapse-label">{collapsed ? '' : 'Collapse'}</span>
+        </button>
+      )}
       {authed ? (
         <button className="theme-toggle" onClick={signOut} style={{ marginTop: 8 }}>
-          ↩ Sign out
+          ↩ <span>Sign out</span>
         </button>
       ) : (
         <Link
@@ -120,7 +134,7 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
           className="theme-toggle"
           style={{ marginTop: 8, textAlign: 'center', textDecoration: 'none', display: 'block' }}
         >
-          Sign in
+          <span>Sign in</span>
         </Link>
       )}
     </aside>

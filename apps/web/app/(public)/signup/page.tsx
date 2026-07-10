@@ -21,9 +21,9 @@ const FALLBACK_PRESETS = [
   { key: 'pressure_washing', engine: 'FIELD_SERVICES', label: 'Pressure Washing', tagline: 'Quote fast, book routes, rebook seasons.', icon: '💦' },
   { key: 'window_cleaning', engine: 'FIELD_SERVICES', label: 'Window Cleaning', tagline: 'Recurring routes on autopilot.', icon: '🪟' },
   { key: 'junk_removal', engine: 'FIELD_SERVICES', label: 'Junk Removal', tagline: 'Photo quotes, same-day dispatch.', icon: '🚛' },
-  { key: 'field_services', engine: 'FIELD_SERVICES', label: 'Field Services (General)', tagline: 'Any mobile workforce.', icon: '🚐' },
-  { key: 'property_management', engine: 'PROPERTY_MANAGEMENT', label: 'Property Management', tagline: 'Tenants, vendors, owners in one place.', icon: '🏢' },
-  { key: 'service_agencies', engine: 'SERVICE_AGENCIES', label: 'Service Agency', tagline: 'Client work, cases and retainers.', icon: '💼' },
+  { key: 'field_services', engine: 'FIELD_SERVICES', label: 'General Field Services', tagline: 'Any mobile workforce.', icon: '🚐' },
+  { key: 'property_management', engine: 'PROPERTY_MANAGEMENT', label: 'Real Estate', tagline: 'Leasing, property management and brokerages in one place.', icon: '🏢' },
+  { key: 'service_agencies', engine: 'SERVICE_AGENCIES', label: 'Professional Services', tagline: 'Client work, cases and retainers.', icon: '💼' },
 ];
 
 const COUNTRIES = ['United States', 'Canada', 'United Kingdom', 'Australia', 'New Zealand', 'Ireland', 'Other'];
@@ -75,8 +75,8 @@ export default function SignupPage() {
       const msg = String(err?.message ?? '');
       setError(
         msg.includes('409') || msg.toLowerCase().includes('exists')
-          ? 'A workspace with that email already exists. Try logging in instead.'
-          : 'Could not create your workspace. Please check your details and try again.',
+          ? 'An account with that email already exists. Try logging in instead.'
+          : 'Could not create your account. Please check your details and try again.',
       );
       setLoading(false);
     }
@@ -86,7 +86,7 @@ export default function SignupPage() {
     <div className="auth-wrap">
       <div className="auth-card" style={{ maxWidth: 480 }}>
         <SofilicMark size={40} animated />
-        <h1>Create your Sofilic workspace</h1>
+        <h1>Create your Sofilic account</h1>
         <p className="sub">Pick your industry and Sofilic configures itself for how your business runs.</p>
         {error && <div className="auth-err">{error}</div>}
         <form onSubmit={submit}>
@@ -145,11 +145,11 @@ export default function SignupPage() {
             />
           </div>
           <button className="btn" type="submit" disabled={loading} style={{ width: '100%', marginTop: 6 }}>
-            {loading ? 'Configuring your workspace…' : 'Get Started'}
+            {loading ? 'Setting up your business…' : 'Get Started'}
           </button>
         </form>
         <div className="auth-foot">
-          Already have a workspace? <Link href="/login">Sign in</Link>
+          Already have an account? <Link href="/login">Sign in</Link>
         </div>
       </div>
     </div>

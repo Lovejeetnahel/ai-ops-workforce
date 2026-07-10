@@ -48,7 +48,7 @@ const GROUPS = [
       { ico: '🧩', name: 'Marketplace', desc: 'Install AI employees, workflow packs, industry template packs and integrations in one click.' },
       { ico: '🔌', name: 'Public API', desc: 'Scoped API keys with per-key rate limits over /v1 REST endpoints for leads, jobs, invoices and account.' },
       { ico: '🛡️', name: 'Compliance & Audit', desc: 'Audit logs, consent records, retention policies, GDPR/PIPEDA export and erasure.' },
-      { ico: '🔒', name: 'Enterprise security', desc: 'Fail-closed tenant isolation, RBAC on every route, AES-256 encrypted credentials, JWT with refresh rotation.' },
+      { ico: '🔒', name: 'Enterprise security', desc: 'Fail-closed data isolation between businesses, role-based access on every route, AES-256 encrypted credentials, JWT with refresh rotation.' },
     ],
   },
 ];
