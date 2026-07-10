@@ -42,10 +42,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="os-topbar">
             <div className="os-greeting">
               <h2>Welcome back{userName ? `, ${userName}` : ''} 👋</h2>
-              <span className="muted">Sofilic OS · AI Command Center · Executive Briefing</span>
+              <span className="muted">Sofilic OS · Business Operating System</span>
             </div>
             <div className="os-actions">
-              <Link href="/executive" className="btn ghost sm">Executive Briefing</Link>
+              <Link href="/notifications" className="hamburger" aria-label="Notifications" title="Notifications">🔔</Link>
               <Link href="/dashboard" className="btn sm">Command Center</Link>
             </div>
           </div>

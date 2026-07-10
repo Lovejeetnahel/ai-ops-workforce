@@ -5,58 +5,47 @@ import { useEffect, useState } from 'react';
 import { api, isAuthed, logout } from '../lib/api';
 import { SofilicLogo } from './Logo';
 
-type NavSection = { title: string; links: { href: string; label: string; ico: string }[] };
+type NavItem = { href: string; label: string; ico: string };
+type NavSection = { title?: string; links: NavItem[] };
 
-/** Default nav for tenants without an industry preset (and offline/demo mode). */
+/**
+ * SOFILIC 2.0 — frozen Rev-2 navigation (Product Constitution Rule 4: no new
+ * top-level item without explicit approval). This tree is static: industries
+ * customize content via presets/templates, never the sidebar shape. The only
+ * per-tenant variable is the small brand subtitle under the logo.
+ */
 const SECTIONS: NavSection[] = [
+  { links: [{ href: '/dashboard', label: 'Dashboard', ico: '⌘' }] },
   {
-    title: 'Operate',
+    title: 'CRM & Sales',
     links: [
-      { href: '/dashboard', label: 'Dashboard', ico: '⌘' },
-      { href: '/pipeline', label: 'Pipeline', ico: '▤' },
-      { href: '/workforce', label: 'AI Workforce', ico: '✦' },
-      { href: '/dispatch', label: 'Dispatch', ico: '➤' },
-      { href: '/jobs', label: 'Field Team', ico: '▣' },
-      { href: '/portal', label: 'Customer Portal', ico: '◉' },
+      { href: '/crm', label: 'CRM', ico: '◈' },
+      { href: '/sales', label: 'Sales', ico: '▲' },
     ],
   },
   {
-    title: 'Grow',
+    title: 'Talk to Customers',
     links: [
-      { href: '/revenue', label: 'Revenue', ico: '◈' },
-      { href: '/analytics', label: 'Analytics', ico: '∿' },
-      { href: '/executive', label: 'Executive Briefing', ico: '❖' },
+      { href: '/conversations', label: 'Conversations', ico: '▤' },
+      { href: '/voice-ai', label: 'Voice AI', ico: '◎' },
     ],
   },
   {
-    title: 'Marketing',
+    title: 'Grow & Get Found',
     links: [
-      { href: '/reviews', label: 'Reviews', ico: '★' },
-      { href: '/marketing', label: 'Marketing Studio', ico: '◬' },
+      { href: '/marketing', label: 'Marketing', ico: '◬' },
+      { href: '/social', label: 'Social Media', ico: '⬡' },
+      { href: '/websites', label: 'Websites', ico: '▣' },
+      { href: '/seo', label: 'SEO', ico: '∿' },
     ],
   },
-  {
-    title: 'Communication',
-    links: [
-      { href: '/inbox', label: 'Inbox', ico: '▤' },
-      { href: '/notifications', label: 'Notifications', ico: '◔' },
-    ],
-  },
-  {
-    title: 'Automate',
-    links: [
-      { href: '/automations', label: 'Automations', ico: '⟳' },
-      { href: '/workflows', label: 'Workflows', ico: '⇶' },
-      { href: '/marketplace', label: 'Marketplace', ico: '▦' },
-    ],
-  },
-  {
-    title: 'Manage',
-    links: [
-      { href: '/billing', label: 'Billing', ico: '▭' },
-      { href: '/settings', label: 'Settings', ico: '⚙' },
-    ],
-  },
+  { links: [{ href: '/automation', label: 'Automation', ico: '⟳' }] },
+  { links: [{ href: '/payments', label: 'Payments', ico: '▭' }] },
+];
+
+const PINNED: NavItem[] = [
+  { href: '/apps', label: 'Apps', ico: '▦' },
+  { href: '/settings', label: 'Settings', ico: '⚙' },
 ];
 
 /** The nav column. Rendered in the desktop sidebar and the mobile drawer. */
@@ -65,24 +54,20 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const router = useRouter();
   const [theme, setTheme] = useState('dark');
   const [authed, setAuthed] = useState(false);
-  const [sections, setSections] = useState<NavSection[]>(SECTIONS);
-  const [brandSub, setBrandSub] = useState('Sofilic OS');
+  const [brandSub, setBrandSub] = useState('Business OS');
 
   useEffect(() => {
     const saved = window.localStorage.getItem('aiow_theme') ?? 'dark';
     setTheme(saved);
     document.documentElement.setAttribute('data-theme', saved);
     setAuthed(isAuthed());
-    // Phase 1: industry preset drives the nav. Falls back to the default
-    // sections when the tenant has no preset or the API is unreachable.
+    // Presets customize content (templates, automations, pipelines) — never
+    // the nav shape. This read is display-only: the small label under the logo.
     if (isAuthed()) {
       api
         .moduleConfig()
         .then((cfg) => {
-          if (cfg?.preset?.navGroups?.length) {
-            setSections(cfg.preset.navGroups);
-            setBrandSub(cfg.preset.label ?? 'Sofilic OS');
-          }
+          if (cfg?.preset?.label) setBrandSub(cfg.preset.label);
         })
         .catch(() => {});
     }
@@ -100,28 +85,27 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
     router.push('/login');
   };
 
+  const renderLink = (l: NavItem) => (
+    <Link key={l.href} href={l.href} className={path === l.href ? 'active' : ''} onClick={onNavigate}>
+      <span className="ico">{l.ico}</span>
+      {l.label}
+    </Link>
+  );
+
   return (
     <aside className="sidebar">
       <Link href="/" className="brand" style={{ textDecoration: 'none' }}>
         <SofilicLogo size={34} sub={brandSub} animated />
       </Link>
       <nav className="nav">
-        {sections.map((s) => (
-          <div key={s.title}>
-            <div className="nav-section">{s.title}</div>
-            {s.links.map((l) => (
-              <Link
-                key={l.href}
-                href={l.href}
-                className={path === l.href ? 'active' : ''}
-                onClick={onNavigate}
-              >
-                <span className="ico">{l.ico}</span>
-                {l.label}
-              </Link>
-            ))}
+        {SECTIONS.map((s, i) => (
+          <div key={s.title ?? i}>
+            {s.title && <div className="nav-section">{s.title}</div>}
+            {s.links.map(renderLink)}
           </div>
         ))}
+        <div className="nav-section">&nbsp;</div>
+        {PINNED.map(renderLink)}
       </nav>
       <button className="theme-toggle" onClick={toggle}>
         {theme === 'dark' ? '☀ Light mode' : '🌙 Dark mode'}

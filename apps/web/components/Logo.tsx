@@ -16,13 +16,13 @@ export function SofilicMark({ size = 34, animated = false }: { size?: number; an
     >
       <defs>
         <linearGradient id="sofilic-g1" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#5b6cff" />
-          <stop offset="0.55" stopColor="#8b5cf6" />
-          <stop offset="1" stopColor="#22d3ee" />
+          <stop offset="0" stopColor="#ffc629" />
+          <stop offset="0.55" stopColor="#e8a317" />
+          <stop offset="1" stopColor="#ffe066" />
         </linearGradient>
         <linearGradient id="sofilic-g2" x1="48" y1="0" x2="0" y2="48" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#22d3ee" />
-          <stop offset="1" stopColor="#5b6cff" />
+          <stop offset="0" stopColor="#ffe066" />
+          <stop offset="1" stopColor="#ffc629" />
         </linearGradient>
       </defs>
       <rect width="48" height="48" rx="13" fill="url(#sofilic-g1)" fillOpacity="0.13" />
