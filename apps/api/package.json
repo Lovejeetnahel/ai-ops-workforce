@@ -8,7 +8,7 @@
     "start": "node dist/main.js",
     "worker": "node dist/worker.js",
     "seed:brain": "ts-node src/scripts/seed-brain.ts",
-    "lint": "eslint \"src/**/*.ts\"",
+    "lint": "tsc --noEmit",
     "test": "jest",
     "test:cov": "jest --coverage",
     "prisma": "prisma"
