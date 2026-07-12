@@ -84,6 +84,118 @@ export class AnalyticsService {
     return [...buckets.entries()].sort().map(([date, value]) => ({ date, value }));
   }
 
+  /**
+   * Single-call aggregate powering the main Dashboard (Phase 2). Every number
+   * comes from the tenant-scoped client over existing source-of-truth tables —
+   * value ledger, leads, conversations, jobs, documents, activities, automation
+   * event log, agent tasks. `modules` flags let the UI hide widgets for
+   * capabilities the tenant has never used, instead of showing empty noise.
+   */
+  async overview() {
+    const now = new Date();
+    const dayStart = new Date(now); dayStart.setHours(0, 0, 0, 0);
+    const weekAgo = new Date(now.getTime() - 7 * 86_400_000);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const month: Range = { from: monthStart, to: now };
+    const prevMonth: Range = { from: prevMonthStart, to: monthStart };
+    const db = this.prisma.db;
+
+    const [
+      leadsToday, leadsThisWeek, leadsThisMonth, leadsPrevMonth, openLeads, pipelineRows,
+      revenueThisMonth, revenuePrevMonth,
+      openConversations, voiceCallsThisWeek, conversationsEver,
+      bookedThisWeek, bookingsEver,
+      jobsOpen, jobsCompletedThisMonth, jobsEver,
+      outstandingAgg, overdueInvoices,
+      urgentOpenJobs, pendingApprovals, openTasks, overdueTasks,
+      automationRulesEnabled, automationEventsThisWeek,
+      aiTasksThisWeek, aiTasksEver,
+    ] = await Promise.all([
+      db.lead.count({ where: { createdAt: { gte: dayStart } } }),
+      db.lead.count({ where: { createdAt: { gte: weekAgo } } }),
+      db.lead.count({ where: { createdAt: { gte: monthStart } } }),
+      db.lead.count({ where: { createdAt: { gte: prevMonthStart, lt: monthStart } } }),
+      db.lead.count({ where: { stage: { in: OPEN_LEAD as any } } }),
+      db.lead.findMany({ where: { stage: { in: OPEN_LEAD as any } }, select: { estimatedValue: true } }),
+      this.ledgerSum('CREDIT', month),
+      this.ledgerSum('CREDIT', prevMonth),
+      db.conversation.count({ where: { status: 'OPEN' as any } }),
+      db.conversation.count({ where: { channel: 'VOICE' as any, createdAt: { gte: weekAgo } } }),
+      db.conversation.count(),
+      db.booking.count({ where: { createdAt: { gte: weekAgo }, status: { not: 'CANCELLED' as any } } }),
+      db.booking.count(),
+      db.job.count({ where: { status: { in: OPEN_JOB as any } } }),
+      db.job.count({ where: { completedAt: { gte: monthStart } } }),
+      db.job.count(),
+      db.document.aggregate({ where: { type: 'INVOICE' as any, status: { in: ['SENT', 'VIEWED'] as any } }, _sum: { amount: true }, _count: true }),
+      db.document.count({ where: { type: 'INVOICE' as any, status: { in: ['SENT', 'VIEWED'] as any }, createdAt: { lt: new Date(now.getTime() - 7 * 86_400_000) } } }),
+      db.job.count({ where: { priority: 'EMERGENCY' as any, status: { in: ['UNSCHEDULED', 'SCHEDULED', 'DISPATCHED'] as any } } }),
+      db.jobApproval.count({ where: { status: 'PENDING' as any } }),
+      db.activity.count({ where: { type: 'TASK' as any, status: 'OPEN' as any } }),
+      db.activity.count({ where: { type: 'TASK' as any, status: 'OPEN' as any, dueAt: { lt: now } } }),
+      db.automationRule.count({ where: { enabled: true } }),
+      db.eventLog.count({ where: { createdAt: { gte: weekAgo } } }),
+      db.agentTask.count({ where: { createdAt: { gte: weekAgo } } }),
+      db.agentTask.count(),
+    ]);
+
+    const [recentActivity, revenueSeries] = await Promise.all([
+      this.recentActivity(),
+      this.timeseries('revenue', { from: new Date(now.getTime() - 30 * 86_400_000), to: now }),
+    ]);
+
+    return {
+      generatedAt: now.toISOString(),
+      kpis: {
+        leadsToday, leadsThisWeek, leadsThisMonth, leadsPrevMonth,
+        openLeads,
+        pipelineValue: this.sumDecimal(pipelineRows, 'estimatedValue'),
+        revenueThisMonth, revenuePrevMonth,
+        openConversations, voiceCallsThisWeek,
+        bookedThisWeek,
+        jobsOpen, jobsCompletedThisMonth,
+        outstandingInvoicesAmount: Number(outstandingAgg._sum.amount ?? 0),
+        outstandingInvoicesCount: outstandingAgg._count,
+        automationRulesEnabled, automationEventsThisWeek,
+        aiTasksThisWeek,
+      },
+      attention: { overdueInvoices, urgentOpenJobs, pendingApprovals, overdueTasks, openTasks },
+      recentActivity,
+      revenueSeries,
+      modules: {
+        jobs: jobsEver > 0,
+        bookings: bookingsEver > 0,
+        conversations: conversationsEver > 0,
+        ai: aiTasksEver > 0,
+        automation: automationRulesEnabled > 0,
+      },
+    };
+  }
+
+  /** Most recent real business events, merged across sources (newest first). */
+  private async recentActivity(limit = 10) {
+    const db = this.prisma.db;
+    const [leads, payments, jobs, conversations, agentTasks] = await Promise.all([
+      db.lead.findMany({ orderBy: { createdAt: 'desc' }, take: limit, select: { id: true, createdAt: true, serviceType: true, source: true, contact: { select: { name: true } } } }),
+      db.payment.findMany({ where: { status: 'SUCCEEDED' as any }, orderBy: { updatedAt: 'desc' }, take: limit, select: { id: true, updatedAt: true, amount: true, contact: { select: { name: true } } } }),
+      db.job.findMany({ where: { completedAt: { not: null } }, orderBy: { completedAt: 'desc' }, take: limit, select: { id: true, completedAt: true, title: true } }),
+      db.conversation.findMany({ orderBy: { createdAt: 'desc' }, take: limit, select: { id: true, createdAt: true, channel: true, contact: { select: { name: true } } } }),
+      db.agentTask.findMany({ orderBy: { createdAt: 'desc' }, take: limit, select: { id: true, createdAt: true, agentKey: true, type: true, status: true } }),
+    ]);
+    const items = [
+      ...leads.map((l) => ({ id: `lead-${l.id}`, kind: 'lead', at: l.createdAt, title: `New lead${l.contact?.name ? ` — ${l.contact.name}` : ''}`, detail: l.serviceType ?? l.source ?? null })),
+      ...payments.map((p) => ({ id: `payment-${p.id}`, kind: 'payment', at: p.updatedAt, title: `Payment received — $${Number(p.amount).toLocaleString()}`, detail: p.contact?.name ?? null })),
+      ...jobs.map((j) => ({ id: `job-${j.id}`, kind: 'job', at: j.completedAt as Date, title: `Job completed — ${j.title}`, detail: null as string | null })),
+      ...conversations.map((c) => ({ id: `conversation-${c.id}`, kind: 'conversation', at: c.createdAt, title: `${String(c.channel).charAt(0) + String(c.channel).slice(1).toLowerCase()} conversation started`, detail: c.contact?.name ?? null })),
+      ...agentTasks.map((t) => ({ id: `ai-${t.id}`, kind: 'ai', at: t.createdAt, title: `AI ${t.agentKey} ran ${t.type}`, detail: String(t.status).toLowerCase() })),
+    ];
+    return items
+      .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+      .slice(0, limit)
+      .map((i) => ({ ...i, at: new Date(i.at).toISOString() }));
+  }
+
   /** Pre-built domain dashboard (KPIs + series). */
   async domainDashboard(type: string, range: Range = AnalyticsService.defaultRange()) {
     const sets: Record<string, string[]> = {
