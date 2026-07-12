@@ -72,6 +72,12 @@ What's real (wired to live backend) vs. honest-empty (structurally complete UI, 
 | Conversations, Marketing, Social, Websites, SEO | 🟡 Honest empty/setup states (no backend yet) |
 | Settings | ✅ Real (business type, invite-user modal) |
 
+**Phase 2 PRODUCTION DEPLOYMENT: ✅ CONFIRMED LIVE (2026-07-12, by the owner)**
+- Live site: `https://sofilic.com` · Live API: `https://api.sofilic.com` (Caddy → loopback containers on the Hetzner VPS, `/opt/aiow`).
+- Deployed `main` commit: `d3dde3f` (merge of PR #1 — full Phase 2 implementation + release hardening).
+- Deployment performed and verified by the owner via the release Termius block (backup tag `pre-phase2-backup` created on the server; rollback path documented below).
+- This is the current production state. Any future deploy starts from this baseline.
+
 **Phase 2 RELEASE — production domains + Docker hardening: ✅ DONE (2026-07-12, PR #1)**
 
 Release details:
