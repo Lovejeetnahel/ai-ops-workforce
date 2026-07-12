@@ -6,8 +6,10 @@ services:
       POSTGRES_USER: aiow
       POSTGRES_PASSWORD: aiow
       POSTGRES_DB: aiow
+    # Loopback-only: reachable from the host (psql debugging) and from other
+    # containers via the compose network, never from the public internet.
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -20,8 +22,9 @@ services:
     image: redis:7-alpine
     # AOF persistence: queue jobs survive container restarts.
     command: redis-server --appendonly yes --appendfsync everysec
+    # Loopback-only — see postgres note.
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redisdata:/data
     healthcheck:
@@ -38,8 +41,10 @@ services:
     environment:
       DATABASE_URL: postgresql://aiow:aiow@postgres:5432/aiow?schema=public
       REDIS_URL: redis://redis:6379
+    # Loopback-only: public traffic reaches the API through the host reverse
+    # proxy (Caddy on :80/:443 → 127.0.0.1:4000), never directly.
     ports:
-      - "4000:4000"
+      - "127.0.0.1:4000:4000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -65,11 +70,18 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      args:
+        # Inlined into the client bundle at image build time (see Dockerfile).
+        # Production: set WEB_PUBLIC_API_URL=https://api.sofilic.com in the
+        # host environment / .env before `docker compose build web`.
+        WEB_PUBLIC_API_URL: ${WEB_PUBLIC_API_URL:-http://localhost:4000}
     env_file: .env
     environment:
-      WEB_PUBLIC_API_URL: http://localhost:4000
+      WEB_PUBLIC_API_URL: ${WEB_PUBLIC_API_URL:-http://localhost:4000}
+    # Loopback-only: public traffic reaches the web app through the host
+    # reverse proxy (Caddy on :80/:443 → 127.0.0.1:3000), never directly.
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       - api
 

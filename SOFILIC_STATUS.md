@@ -1,7 +1,7 @@
 # SOFILIC — Project Status & Constitution
 *Read this file first in any new session, on any device. It is the single source of truth for where this project stands and the rules that govern it.*
 
-Last updated: 2026-07-11
+Last updated: 2026-07-12
 
 ---
 
@@ -49,11 +49,20 @@ Dashboard absorbed Reports as tabs (Overview / Analytics / Reports / Custom Dash
 
 **Phase 1 — App shell, navigation, design system: ✅ DONE**
 **Phase 1.5 — Terminology cleanup, black-and-gold design system, full frontend redesign: ✅ DONE**
+**Phase 2 — Dashboard real data wiring: ✅ DONE (2026-07-12)**
+
+Phase 2 details:
+- **Completed:** Main Dashboard is fully wired to live tenant data with the frozen Rev-2 tab structure (Overview / Analytics / Reports / Custom dashboards). Overview shows real KPI cards (leads today/7d, revenue this month with real month-over-month delta, open conversations + voice calls, pipeline value + open leads), a gold 30-day revenue trend chart (SVG, no chart library), a merged real recent-activity feed (leads, payments, completed jobs, conversations, AI agent runs), and a real needs-attention panel (urgent jobs, overdue invoices, pending approvals, overdue tasks) that links into the owning modules. Widgets for jobs, bookings, automation and AI appear only when the tenant actually has that data (`modules` flags) — no irrelevant or fabricated widgets. Analytics tab renders the existing `/analytics/dashboard/executive` KPIs + revenue series. Custom dashboards tab lists real saved dashboards from `/analytics/dashboards`.
+- **Files changed:** `apps/api/src/enterprise/analytics/analytics.service.ts` (new `overview()` aggregate + `recentActivity()` — additive, no existing method touched), `apps/api/src/enterprise/analytics/analytics.controller.ts` (new `GET /analytics/overview`, STAFF role), `apps/web/lib/api.ts` (added `overview`, `savedDashboards`), `apps/web/app/(app)/dashboard/page.tsx` (rewritten page).
+- **Real data sources:** Value Ledger (revenue, trend), Lead/Contact (leads, pipeline), Conversation (threads, voice calls), Booking, Job + JobApproval, Document (outstanding/overdue invoices), Activity (open/overdue tasks), AutomationRule + EventLog (automation activity), AgentTask (AI activity). All via the tenant-scoped fail-closed Prisma client — no raw queries, no schema changes, no new tables.
+- **Verified:** `@aiow/config`+API+web builds pass (zero type/lint errors, all 28 routes); 16/16 existing jest tests pass; live end-to-end test against a real local Postgres(pgvector)+Redis stack — two tenants created via the real signup API, leads created via the real leads API, `GET /analytics/overview` returned correct numbers for tenant A while tenant B saw all zeros (tenant isolation confirmed) and unauthenticated requests got 403; dashboard rendered in headless Chromium with zero console errors, all tabs + trend chart verified visually, and /crm /sales /automation /payments /voice-ai /settings /conversations /apps all still return 200.
+- **Honest remaining limitations:** Reports tab is still a placeholder (no exports/scheduled reports built); Custom dashboards tab is read-only (the API supports create, but there is no builder UI); month-over-month delta shows "No prior-month data" until a tenant has a prior month in the ledger; the trend chart needs ≥2 days of ledger history; recent activity is capped at the 10 newest events with no pagination; conversation metrics count threads, not individual messages.
 
 What's real (wired to live backend) vs. honest-empty (structurally complete UI, no backend yet):
 
 | Module | Status |
 |---|---|
+| Dashboard | ✅ Real (Overview KPIs, revenue trend, activity feed, needs-attention; Analytics tab real; Reports/Custom honest states) |
 | CRM | ✅ Real (Companies, Tasks, Contacts-from-pipeline) |
 | Sales | ✅ Real (pipeline board, follow-ups) |
 | Automation | ✅ Real (Recipes + Workflows + History, live toggle) |
@@ -63,9 +72,19 @@ What's real (wired to live backend) vs. honest-empty (structurally complete UI, 
 | Conversations, Marketing, Social, Websites, SEO | 🟡 Honest empty/setup states (no backend yet) |
 | Settings | ✅ Real (business type, invite-user modal) |
 
-**Phase 2 — Dashboard real data wiring: ⏸ NOT STARTED. Awaiting explicit approval before starting.**
+**Phase 2 RELEASE — production domains + Docker hardening: ✅ DONE (2026-07-12, PR #1)**
 
-Do not begin Phase 2 or any new phase without the user explicitly saying so in a fresh session — this file being read is not itself approval.
+Release details:
+- **PR:** #1 (`claude/access-project-mobile-xyjkyh` → `main`). Final merged commit hash: recorded in git history of `main` (merge of PR #1).
+- **Production domains (Caddy on host, ports 80/443):** `https://sofilic.com` → `127.0.0.1:3000` (web), `https://www.sofilic.com` → redirect to apex, `https://api.sofilic.com` → `127.0.0.1:4000` (api).
+- **Env required on the server (`/opt/aiow/.env`) — real variable names, no new ones invented:** `NODE_ENV=production`, `WEB_PUBLIC_API_URL=https://api.sofilic.com` (inlined into the web client bundle at BUILD time — changing it requires `docker compose build web`, not a restart), `CORS_ORIGINS=https://sofilic.com,https://www.sofilic.com` (strict allowlist; API refuses to boot in production without it), plus the existing secrets: `JWT_SECRET` (32+ chars), `CREDENTIALS_ENCRYPTION_KEY` (64 hex), `DATABASE_URL`, `REDIS_URL`. Auth is pure Bearer-token: no cookie domain, no OAuth callbacks exist.
+- **Docker security changes:** all published container ports now bind to `127.0.0.1` only (postgres 5432, redis 6379, api 4000, web 3000) — nothing is internet-reachable except through Caddy; container-to-container networking unchanged (service DNS names, not host ports); worker publishes no ports. `apps/web/Dockerfile` gained a `WEB_PUBLIC_API_URL` build ARG and compose forwards it — this fixes a real bug where the production web bundle silently baked in `http://localhost:4000`.
+- **Verification performed:** compose config validates; lint + build + 16/16 tests pass; web bundle built with the production URL contains `api.sofilic.com` and zero `localhost:4000` references in client chunks; live CORS probe — `https://sofilic.com` and `https://www.sofilic.com` allowed, `https://evil.com` rejected (no allow-origin header); tenant isolation re-verified live (second tenant still sees zero foreign data); no secrets in the committed diff (`.env` stays gitignored); GitHub Actions green.
+- **Honest remaining limitations:** local-dev compose still uses the default `aiow/aiow` Postgres credentials — fine on loopback, but a strong `POSTGRES_PASSWORD` + matching `DATABASE_URL` on the server is recommended as a follow-up (changing it is a stateful operation and was out of scope for this release); Caddy itself is configured on the host, outside this repo; no staging environment yet; error tracking (Sentry-class) still not wired.
+- **Deployment:** see `docs/DEPLOYMENT.md` → "Production domains" + the Termius block in the release notes: backup tag → `git pull` → set env → `docker compose build api worker web` → `docker compose up -d` → health checks.
+- **Rollback:** `git checkout <previous-tag-or-hash> && docker compose build api worker web && docker compose up -d` (database untouched — this release contains no migrations).
+
+**Next phase: ⏸ NOT DEFINED / NOT APPROVED.** Strong candidates per the Constitution ("wire, don't build"): Conversations backend wiring (real thread/message backend exists) or Voice AI beyond the Agents tab. The user must explicitly choose and approve the next phase in a session — this file being read is not itself approval.
 
 ---
 

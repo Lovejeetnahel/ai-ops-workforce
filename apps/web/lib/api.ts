@@ -67,7 +67,9 @@ export const api = {
   completeTask: (id: string) => request(`/activities/${id}/complete`, { method: 'POST' }),
 
   // enterprise analytics + intelligence
+  overview: () => request<any>(`/analytics/overview`),
   analytics: (type: string) => request<any>(`/analytics/dashboard/${type}`),
+  savedDashboards: () => request<any[]>(`/analytics/dashboards`),
   briefing: () => request<any>(`/intelligence/briefing`),
 
   // AI workforce

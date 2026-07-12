@@ -12,6 +12,12 @@ export class AnalyticsController {
     return AnalyticsService.defaultRange(days ? Math.max(1, Math.min(365, parseInt(days, 10) || 30)) : 30);
   }
 
+  @Get('overview')
+  @Roles('STAFF')
+  overview() {
+    return this.analytics.overview();
+  }
+
   @Get('dashboard/:type')
   @Roles('STAFF')
   dashboard(@Param('type') type: string, @Query('days') days?: string) {

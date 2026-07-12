@@ -31,6 +31,36 @@ docker compose up --build           # postgres, redis, api, worker, web
 # api → http://localhost:4000   web → http://localhost:3000
 ```
 
+## Production domains (sofilic.com, live)
+
+Public traffic terminates at **Caddy on the host** (ports 80/443); every
+container port is bound to `127.0.0.1` only, so Postgres, Redis, the API and
+the web app are unreachable from the internet except through the proxy:
+
+| Domain | Caddy upstream |
+|---|---|
+| `https://sofilic.com` | `127.0.0.1:3000` (web) |
+| `https://www.sofilic.com` | redirect → `https://sofilic.com` |
+| `https://api.sofilic.com` | `127.0.0.1:4000` (api) |
+
+Required domain-related env in the server's `.env` (real variable names —
+nothing else configures domains):
+
+```bash
+NODE_ENV=production
+WEB_PUBLIC_API_URL=https://api.sofilic.com                  # baked into the web bundle at BUILD time
+CORS_ORIGINS=https://sofilic.com,https://www.sofilic.com    # strict allowlist, never "*"
+```
+
+⚠️ `WEB_PUBLIC_API_URL` is inlined into the client JavaScript during
+`docker compose build web` (Next.js `env` config). Changing it requires a
+**rebuild** of the web image, not just a restart. The API also refuses to boot
+in production without `CORS_ORIGINS`, `JWT_SECRET` (32+ chars),
+`CREDENTIALS_ENCRYPTION_KEY` (64 hex), `DATABASE_URL`, `REDIS_URL`.
+
+Auth is Bearer-token (Authorization header) — there are no cross-domain
+cookies and no OAuth callback URLs to configure.
+
 ## Production checklist
 
 | Step | Notes |
