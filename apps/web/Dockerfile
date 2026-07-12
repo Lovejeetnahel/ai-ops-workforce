@@ -14,6 +14,11 @@ RUN pnpm install --frozen-lockfile
 
 FROM deps AS build
 ENV NEXT_OUTPUT=standalone
+# The API base URL is inlined into the client bundle by next.config.js at
+# BUILD time — runtime env cannot change it. Pass the production value as a
+# build arg (docker-compose forwards WEB_PUBLIC_API_URL from the host env).
+ARG WEB_PUBLIC_API_URL=http://localhost:4000
+ENV WEB_PUBLIC_API_URL=$WEB_PUBLIC_API_URL
 COPY packages/config packages/config
 COPY apps/web apps/web
 # public/ may not exist in source when no static assets have been added yet.
