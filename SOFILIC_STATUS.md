@@ -118,7 +118,7 @@ Release details:
 Awaiting founder review before merge, per explicit instruction — `main` has not been touched by this work.
 
 - **Branch:** `website/release-1-trust-accuracy` (from latest `main` post-Phase-2-deploy).
-- **PR:** draft, not yet merged — see the PR list for the exact number; title `Public Website Release 1 — Trust, Accuracy and Consistency`.
+- **PR:** [#3](https://github.com/Lovejeetnahel/ai-ops-workforce/pull/3) — draft, not yet merged. Title: `Public Website Release 1 — Trust, Accuracy and Consistency`.
 
 **Files changed:**
 - New: `apps/web/lib/product-status.ts` (the single source of truth for Live/Beta/Limited/Coming-soon claims), `apps/web/components/StatusBadge.tsx`, `apps/web/app/(public)/{contact,support,security,privacy,terms}/*`, `apps/web/app/(public)/{login,signup}/layout.tsx` (per-route metadata for the two client-component auth pages), `apps/api/src/public/*` (Contact form module: controller, service, IP-based rate-limit guard), `apps/api/prisma/migrations/20260714144617_add_public_contact_submission/`.
