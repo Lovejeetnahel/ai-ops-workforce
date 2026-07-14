@@ -1560,3 +1560,30 @@ model UsageRecord {
   @@unique([tenantId, metric, period])
   @@index([tenantId, period])
 }
+
+// ═══════════════════ Public website (Website Release 1) ═══════════════════
+// Submissions from the public marketing site's Contact form. Deliberately
+// tenant-agnostic — a prospect has no tenant yet — so this is accessed via
+// the base Prisma client, never the tenant-scoped `.db` extension.
+
+enum ContactSubmissionStatus {
+  NEW
+  READ
+  RESOLVED
+}
+
+model PublicContactSubmission {
+  id        String                  @id @default(cuid())
+  name      String
+  email     String
+  company   String?
+  topic     String                  @default("general") // general/sales/support/security
+  message   String
+  status    ContactSubmissionStatus @default(NEW)
+  /// SHA-256 of the submitting IP, kept only for abuse triage — never the raw IP.
+  ipHash    String?
+  createdAt DateTime                @default(now())
+
+  @@index([createdAt])
+  @@index([status, createdAt])
+}

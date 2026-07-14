@@ -18,6 +18,7 @@ import { LaunchModule } from './launch/launch.module';
 import { AuthModule } from './auth/auth.module';
 import { TenantsModule } from './tenants/tenants.module';
 import { LeadsModule } from './leads/leads.module';
+import { PublicModule } from './public/public.module';
 import { HealthController } from './health.controller';
 
 /**
@@ -53,6 +54,7 @@ import { HealthController } from './health.controller';
     LaunchModule,
     TenantsModule,
     LeadsModule,
+    PublicModule,
   ],
   controllers: [HealthController],
 })

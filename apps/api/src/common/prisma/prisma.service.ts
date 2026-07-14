@@ -56,7 +56,7 @@ import { tenantContext } from '../tenancy/tenant-context';
  *         tenantId mergeable) against a copy of the same `where`. If no row
  *         matches for the current tenant, throw before the real op runs.
  */
-const GLOBAL_MODELS = new Set<string>(['Tenant', 'Message', 'Organization', 'MarketplaceListing']);
+const GLOBAL_MODELS = new Set<string>(['Tenant', 'Message', 'Organization', 'MarketplaceListing', 'PublicContactSubmission']);
 
 /** Free-form WhereInput — safe to merge tenantId directly into `where`. */
 const FILTERABLE_OPS = new Set(['findFirst', 'findFirstOrThrow', 'findMany', 'updateMany', 'deleteMany', 'count', 'aggregate', 'groupBy']);

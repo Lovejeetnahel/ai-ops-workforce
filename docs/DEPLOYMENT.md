@@ -85,3 +85,35 @@ cookies and no OAuth callback URLs to configure.
 Use expand/contract: deploy additive migrations first, then the code that uses
 them, then remove old columns in a later release. `prisma migrate deploy` is
 forward-only and safe to run on every boot.
+
+### ⚠️ `prisma migrate dev` will try to drop the pgvector HNSW indexes — always review the diff
+
+The two HNSW vector indexes (`KnowledgeChunk_embedding_hnsw_idx`,
+`EntityMemory_embedding_hnsw_idx`, added in `20260702000001_pgvector_indexes`)
+were created with raw SQL (`USING hnsw (...)`) because Prisma's schema DSL has
+no way to express an HNSW index. Prisma's schema-diffing engine can't see
+them, so it considers them drift and **every subsequent `prisma migrate dev`
+run against this schema will auto-generate a migration that includes**:
+
+```sql
+-- DropIndex
+DROP INDEX "EntityMemory_embedding_hnsw_idx";
+-- DropIndex
+DROP INDEX "KnowledgeChunk_embedding_hnsw_idx";
+```
+
+This has happened twice already (Website Release 1's `add_public_contact_submission`
+migration, and its follow-up `add_contact_submission_status` migration) — both
+times caught and hand-fixed before commit by deleting those two lines from the
+generated `migration.sql`, since they're not part of the actual intended
+change.
+
+**Before committing any `prisma migrate dev` output on this schema:** open the
+generated `migration.sql` and delete any `DROP INDEX` lines referencing
+`*_hnsw_idx` — they are never intentional. After fixing the file, verify with:
+
+```bash
+DATABASE_URL=... pnpm exec prisma migrate reset --force --skip-seed   # replay from scratch
+DATABASE_URL=... pnpm exec prisma migrate deploy                      # the exact production command
+psql -c "select indexname from pg_indexes where indexname like '%hnsw%';"  # expect 2 rows
+```

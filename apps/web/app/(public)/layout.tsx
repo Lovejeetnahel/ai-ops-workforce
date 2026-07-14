@@ -7,7 +7,7 @@ const NAV = [
   { href: '/features', label: 'Features' },
   { href: '/industries', label: 'Industries' },
   { href: '/pricing', label: 'Pricing' },
-  { href: '/demo', label: 'Demo' },
+  { href: '/demo', label: 'Example Workflow' },
   { href: '/resources', label: 'Resources' },
 ];
 
@@ -45,8 +45,8 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
         <div>
           <SofilicLogo size={30} sub="The AI Business OS" />
           <div style={{ marginTop: 12, maxWidth: 300 }}>
-            Run your entire business with AI — leads, dispatch, field teams, payments, and executive
-            intelligence in one operating system.
+            One login for CRM, sales, automation, payments and field operations — with an AI workforce
+            rolling out feature by feature, honestly labeled.
           </div>
         </div>
         <div>
@@ -55,13 +55,23 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
             <Link href="/features">Features</Link>
             <Link href="/industries">Industries</Link>
             <Link href="/pricing">Pricing</Link>
-            <Link href="/demo">Demo</Link>
+            <Link href="/demo">Example Workflow</Link>
+            <Link href="/resources">Resources</Link>
           </div>
         </div>
         <div>
           <div style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 10, fontSize: 12, letterSpacing: '0.08em' }}>COMPANY</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <Link href="/resources">Resources</Link>
+            <Link href="/contact">Contact</Link>
+            <Link href="/support">Support</Link>
+            <Link href="/security">Security</Link>
+          </div>
+        </div>
+        <div>
+          <div style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 10, fontSize: 12, letterSpacing: '0.08em' }}>LEGAL & ACCOUNT</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <Link href="/privacy">Privacy</Link>
+            <Link href="/terms">Terms</Link>
             <Link href="/login">Login</Link>
             <Link href="/signup">Get Started</Link>
           </div>

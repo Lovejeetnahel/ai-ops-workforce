@@ -97,4 +97,8 @@ export const api = {
   installListing: (id: string) => request(`/marketplace/${id}/install`, { method: 'POST' }),
   plans: () => request<any[]>(`/billing/plans`),
   billingSummary: () => request<any>(`/billing/summary`),
+
+  // public marketing site (no auth)
+  contactUs: (body: { name: string; email: string; company?: string; topic?: string; message: string; website?: string }) =>
+    request<{ ok: true }>(`/public/contact`, { method: 'POST', body: JSON.stringify(body) }),
 };

@@ -3,9 +3,9 @@ import type { Metadata } from 'next';
 import { ToastProvider } from '../components/Toast';
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://sofilic.com'),
   title: 'Sofilic — The AI Business Operating System',
-  description:
-    'Run your entire business with AI. Leads, dispatch, field teams, customer portal, invoices, payments, analytics, AI employees, workflows and marketplace apps — one operating system.',
+  description: 'CRM, sales, automation, payments and field operations for local service businesses — with an AI workforce rolling out feature by feature.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -1,48 +1,72 @@
 import Link from 'next/link';
+import type { Metadata } from 'next';
+import { StatusBadge } from '../../../components/StatusBadge';
+
+export const metadata: Metadata = {
+  title: 'Sofilic Pricing — Plans, Add-ons and What’s Included',
+  description: 'Sofilic pricing in USD, billed monthly: five plans from solo operators to multi-location enterprises, plus honest status on every add-on.',
+  alternates: { canonical: 'https://sofilic.com/pricing' },
+};
 
 const PLANS = [
   {
     name: 'Starter', price: 79, popular: false,
     blurb: 'Solo operators getting off spreadsheets and missed calls.',
-    features: ['CRM & industry pipeline', 'Calendar & scheduling', 'Quotes, invoicing & payments', 'Reviews (basic)', 'Customer portal', '1 AI employee', '3 staff users'],
+    limit: '3 staff users · 1 AI employee role',
+    includes: ['CRM & industry pipeline', 'Calendar & scheduling', 'Quotes, invoicing & payments'],
+    beta: ['Customer portal'],
+    comingSoon: [],
   },
   {
     name: 'Growth', price: 149, popular: true,
-    blurb: 'Small teams that want the phone answered 24/7.',
-    features: ['Everything in Starter', 'AI voice receptionist (300 min)', 'Reviews Pro + AI replies', 'Marketing & social studio', '3 AI employees', '10 staff users'],
+    blurb: 'Small teams that want a system that keeps up with the phone.',
+    limit: '10 staff users · 3 AI employee roles',
+    includes: ['Everything in Starter'],
+    beta: ['Voice AI agent configuration'],
+    comingSoon: ['Reviews & Marketing'],
   },
   {
     name: 'Business', price: 299, popular: false,
-    blurb: 'Established operations running the full AI workforce.',
-    features: ['Everything in Growth', 'Full AI workforce (8 employees)', 'Executive briefing', 'Inventory + Fleet add-ons', 'Website & landing pages', 'Voice 1,000 min', '25 staff users'],
+    blurb: 'Established operations running the full AI employee roster.',
+    limit: '25 staff users · full 8-role AI employee roster',
+    includes: ['Everything in Growth', 'Inventory + Fleet add-on apps'],
+    beta: [],
+    comingSoon: ['Website builder'],
   },
   {
     name: 'Pro', price: 499, popular: false,
-    blurb: 'Multi-crew companies with serious operational depth.',
-    features: ['Everything in Business', 'Industry depth packs', 'HR & training workspaces', 'Client portal variants', 'Public API access', '50 staff users'],
+    blurb: 'Multi-crew companies that need deeper operational tooling.',
+    limit: '50 staff users',
+    includes: ['Everything in Business', 'HR & training workspaces', 'Client portal variants', 'Public API access'],
+    beta: [],
+    comingSoon: [],
   },
   {
     name: 'Enterprise', price: 999, popular: false, custom: true,
     blurb: 'Multi-location groups and franchises.',
-    features: ['Everything in Pro', 'Multi-location management', 'SSO & compliance pack', 'Custom industry module', 'Dedicated success manager', 'SLA & priority onboarding'],
+    limit: 'Custom staff and location limits',
+    includes: ['Everything in Pro', 'Multi-location management', 'Custom industry configuration', 'Dedicated success manager', 'Custom onboarding'],
+    beta: [],
+    comingSoon: [],
   },
 ];
 
 const ADDONS = [
-  { name: 'Extra AI employees', price: 'from $29/mo each', desc: 'Collections AI, Recruiting AI and more — each reports its ROI on the leaderboard.' },
-  { name: 'Voice minutes', price: '$0.20/min after allowance', desc: 'A fraction of a human answering service, available 24/7.' },
-  { name: 'Reviews Pro (standalone)', price: '$49/mo', desc: 'AI replies, reputation score and multi-source ingestion — the Podium replacement.' },
-  { name: 'Marketing Pro', price: '$49/mo', desc: 'Multi-step journeys and revenue attribution from the value ledger.' },
-  { name: 'Website & custom domain', price: '$29/mo', desc: 'Your booking page, reviews and brand on your own domain.' },
+  { name: 'Extra AI employee roles', status: 'live' as const, price: 'Included allowance per plan', desc: 'Each plan includes a number of AI employee roles you can configure; additional roles are discussed at signup.' },
+  { name: 'Voice AI calling minutes', status: 'beta' as const, price: 'Available during beta', desc: 'Automated call answering is in beta rollout. Usage pricing will be shown before activation.' },
+  { name: 'Reviews & Reputation', status: 'coming-soon' as const, price: 'Pricing to be announced', desc: 'Automated review requests and reputation management — not yet live.' },
+  { name: 'Marketing Studio', status: 'coming-soon' as const, price: 'Pricing to be announced', desc: 'Campaigns and social scheduling — not yet live.' },
+  { name: 'Website & custom domain', status: 'coming-soon' as const, price: 'Pricing to be announced', desc: 'A booking page and brand presence on your own domain — not yet live.' },
 ];
 
 const FAQ = [
-  { q: 'Is there a free trial?', a: 'Yes — Get Started provisions a full workspace configured for your industry. No credit card required to explore.' },
-  { q: 'What counts as a staff user?', a: 'Owners, admins, dispatchers and field techs. Customers using the portal are free and unlimited.' },
-  { q: 'Can I change plans later?', a: 'Upgrade or downgrade any time from Billing; changes prorate automatically.' },
-  { q: 'What are AI employees?', a: 'Installable agents (Sales AI, Collections AI, Receptionist, Executive AI…) that do real work and report their ROI on a leaderboard.' },
-  { q: 'How do payments work?', a: 'Payments run on Stripe. Invoices carry pay links, and settlements reconcile idempotently — no double-booked revenue.' },
-  { q: 'Is my data isolated?', a: 'Yes. Every request is scoped to your business with a fail-closed guard — access across accounts is structurally impossible.' },
+  { q: 'Do I need a credit card to get started?', a: 'No. Get Started provisions your workspace immediately with no credit card required. If you choose a paid plan afterward, it begins with a 14-day trial before billing starts.' },
+  { q: 'What currency and billing period is this?', a: 'All prices are in USD, billed monthly. We don’t currently publish an annual-billing discount.' },
+  { q: 'What counts as a staff user?', a: 'Owners, admins, dispatchers and field techs. Customers using the portal don’t count toward your staff limit.' },
+  { q: 'Can I change plans later?', a: 'Yes — upgrade or downgrade any time from Billing in Settings.' },
+  { q: 'What are AI employee roles?', a: 'Installable agent configurations (Sales, Receptionist, Collections and more) you can turn on. Automated actions are currently in beta rollout — see the Features page for exact status.' },
+  { q: 'How do payments work?', a: 'Payments run on your connected Stripe account. Invoices carry pay links, and settlement is designed to avoid double-booked revenue.' },
+  { q: 'Is my data isolated from other businesses?', a: 'Yes. Every request is scoped to your business by a fail-closed guard we’ve directly tested — see our Security page.' },
 ];
 
 export default function PricingPage() {
@@ -50,11 +74,11 @@ export default function PricingPage() {
     <main className="mk-main">
       <section className="hero" style={{ padding: '64px 0 20px' }}>
         <h1 style={{ fontSize: 'clamp(30px, 5vw, 48px)' }}>
-          One subscription, <span className="grad-text">not seven</span>
+          One subscription, <span className="grad-text">priced in USD, billed monthly</span>
         </h1>
         <p className="hero-sub">
-          Sofilic replaces the booking tool, the review tool, the texting tool, the answering service and
-          the marketing app — priced well under what those cost apart.
+          Five plans, from solo operators to multi-location groups. Every plan includes what’s marked
+          live today — beta and coming-soon capabilities are labeled, not hidden in fine print.
         </p>
       </section>
 
@@ -66,13 +90,44 @@ export default function PricingPage() {
               <h3 style={{ margin: 0 }}>{p.name}</h3>
               <div className="price">
                 ${p.price}{(p as any).custom ? '+' : ''}
-                <span className="muted" style={{ fontSize: 14 }}>/mo</span>
+                <span className="muted" style={{ fontSize: 14 }}>/mo USD</span>
               </div>
               <p className="muted" style={{ fontSize: 13, minHeight: 40 }}>{p.blurb}</p>
+              <div className="tag" style={{ marginBottom: 10, display: 'inline-block' }}>{p.limit}</div>
               <ul>
-                {p.features.map((f) => <li key={f}>{f}</li>)}
+                {p.includes.map((f) => <li key={f}>{f}</li>)}
               </ul>
-              <Link href="/signup" className={p.popular ? 'btn' : 'btn ghost'}>Get Started</Link>
+              {p.beta.length > 0 && (
+                <>
+                  <div className="muted" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', margin: '10px 0 4px' }}>In beta</div>
+                  <ul>
+                    {p.beta.map((f) => (
+                      <li key={f}>
+                        <span style={{ flex: 1, display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+                          <span>{f}</span> <StatusBadge status="beta" />
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              {p.comingSoon.length > 0 && (
+                <>
+                  <div className="muted" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', margin: '10px 0 4px' }}>Coming soon</div>
+                  <ul>
+                    {p.comingSoon.map((f) => (
+                      <li key={f}>
+                        <span style={{ flex: 1, display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+                          <span>{f}</span> <StatusBadge status="coming-soon" />
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              <Link href={(p as any).custom ? '/contact' : '/signup'} className={p.popular ? 'btn' : 'btn ghost'} style={{ marginTop: 10 }}>
+                {(p as any).custom ? 'Talk to us' : 'Get Started'}
+              </Link>
             </div>
           ))}
         </div>
@@ -81,16 +136,18 @@ export default function PricingPage() {
       <section className="mk-section" style={{ paddingTop: 10 }}>
         <div className="mk-section-head" style={{ marginBottom: 28 }}>
           <span className="mk-kicker">Add-ons</span>
-          <h2 className="mk-h2" style={{ fontSize: 'clamp(22px, 3vw, 30px)' }}>Grow the stack as you grow</h2>
+          <h2 className="mk-h2" style={{ fontSize: 'clamp(22px, 3vw, 30px)' }}>Grow the stack as it ships</h2>
+          <p className="muted">Add-ons tied to beta or coming-soon capabilities will have pricing announced as they reach general availability. Contact us for current availability.</p>
         </div>
         <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
           {ADDONS.map((a) => (
             <div className="panel" key={a.name}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
                 <strong style={{ fontSize: 14 }}>{a.name}</strong>
-                <span className="tag">{a.price}</span>
+                <StatusBadge status={a.status} />
               </div>
               <p className="muted" style={{ margin: '8px 0 0', fontSize: 13 }}>{a.desc}</p>
+              <span className="tag" style={{ marginTop: 8, display: 'inline-block' }}>{a.price}</span>
             </div>
           ))}
         </div>
@@ -112,9 +169,10 @@ export default function PricingPage() {
       </section>
 
       <section className="final-cta">
-        <h2>Run your entire business with AI.</h2>
+        <h2>Get started free — no credit card required.</h2>
         <div className="hero-ctas" style={{ marginTop: 20 }}>
           <Link href="/signup" className="btn">Get Started</Link>
+          <Link href="/contact" className="btn ghost">Talk to Enterprise</Link>
         </div>
       </section>
     </main>
