@@ -15,11 +15,12 @@ import { PrismaExceptionFilter } from './common/prisma/prisma-exception.filter';
 /** Fail fast in production if critical configuration is missing or insecure. */
 function validateEnv() {
   if (process.env.NODE_ENV !== 'production') return;
-  const required = ['DATABASE_URL', 'REDIS_URL', 'JWT_SECRET', 'CREDENTIALS_ENCRYPTION_KEY', 'CORS_ORIGINS'];
+  const required = ['DATABASE_URL', 'REDIS_URL', 'JWT_SECRET', 'CREDENTIALS_ENCRYPTION_KEY', 'CORS_ORIGINS', 'ADMIN_API_TOKEN'];
   const missing = required.filter((k) => !process.env[k]);
   if (missing.length) throw new Error(`Missing required env: ${missing.join(', ')}`);
   if ((process.env.JWT_SECRET ?? '').length < 32) throw new Error('JWT_SECRET must be at least 32 characters in production');
   if (!/^[0-9a-fA-F]{64}$/.test(process.env.CREDENTIALS_ENCRYPTION_KEY ?? '')) throw new Error('CREDENTIALS_ENCRYPTION_KEY must be 64 hex chars (32 bytes)');
+  if ((process.env.ADMIN_API_TOKEN ?? '').length < 32) throw new Error('ADMIN_API_TOKEN must be at least 32 characters in production');
 }
 
 /**

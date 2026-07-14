@@ -12,36 +12,51 @@ const PLANS = [
   {
     name: 'Starter', price: 79, popular: false,
     blurb: 'Solo operators getting off spreadsheets and missed calls.',
-    features: ['CRM & industry pipeline', 'Calendar & scheduling', 'Quotes, invoicing & payments', 'Customer portal (beta)', '1 AI employee role', '3 staff users'],
+    limit: '3 staff users · 1 AI employee role',
+    includes: ['CRM & industry pipeline', 'Calendar & scheduling', 'Quotes, invoicing & payments'],
+    beta: ['Customer portal'],
+    comingSoon: [],
   },
   {
     name: 'Growth', price: 149, popular: true,
     blurb: 'Small teams that want a system that keeps up with the phone.',
-    features: ['Everything in Starter', 'Voice AI agent configuration (beta)', 'Reviews & Marketing (coming soon)', '3 AI employee roles', '10 staff users'],
+    limit: '10 staff users · 3 AI employee roles',
+    includes: ['Everything in Starter'],
+    beta: ['Voice AI agent configuration'],
+    comingSoon: ['Reviews & Marketing'],
   },
   {
     name: 'Business', price: 299, popular: false,
     blurb: 'Established operations running the full AI employee roster.',
-    features: ['Everything in Growth', 'Full AI employee roster (8 roles)', 'Inventory + Fleet add-on apps', 'Website builder (coming soon)', '25 staff users'],
+    limit: '25 staff users · full 8-role AI employee roster',
+    includes: ['Everything in Growth', 'Inventory + Fleet add-on apps'],
+    beta: [],
+    comingSoon: ['Website builder'],
   },
   {
     name: 'Pro', price: 499, popular: false,
     blurb: 'Multi-crew companies that need deeper operational tooling.',
-    features: ['Everything in Business', 'HR & training workspaces', 'Client portal variants', 'Public API access', '50 staff users'],
+    limit: '50 staff users',
+    includes: ['Everything in Business', 'HR & training workspaces', 'Client portal variants', 'Public API access'],
+    beta: [],
+    comingSoon: [],
   },
   {
     name: 'Enterprise', price: 999, popular: false, custom: true,
     blurb: 'Multi-location groups and franchises.',
-    features: ['Everything in Pro', 'Multi-location management', 'Custom industry configuration', 'Dedicated success manager', 'Custom onboarding'],
+    limit: 'Custom staff and location limits',
+    includes: ['Everything in Pro', 'Multi-location management', 'Custom industry configuration', 'Dedicated success manager', 'Custom onboarding'],
+    beta: [],
+    comingSoon: [],
   },
 ];
 
 const ADDONS = [
   { name: 'Extra AI employee roles', status: 'live' as const, price: 'Included allowance per plan', desc: 'Each plan includes a number of AI employee roles you can configure; additional roles are discussed at signup.' },
-  { name: 'Voice AI calling minutes', status: 'beta' as const, price: 'Pricing to be confirmed', desc: 'Automated call answering is in beta rollout — usage pricing isn’t finalized yet. Talk to us for current terms.' },
-  { name: 'Reviews & Reputation', status: 'coming-soon' as const, price: 'Pricing to be confirmed', desc: 'Automated review requests and reputation management — not yet live.' },
-  { name: 'Marketing Studio', status: 'coming-soon' as const, price: 'Pricing to be confirmed', desc: 'Campaigns and social scheduling — not yet live.' },
-  { name: 'Website & custom domain', status: 'coming-soon' as const, price: 'Pricing to be confirmed', desc: 'A booking page and brand presence on your own domain — not yet live.' },
+  { name: 'Voice AI calling minutes', status: 'beta' as const, price: 'Available during beta', desc: 'Automated call answering is in beta rollout. Usage pricing will be shown before activation.' },
+  { name: 'Reviews & Reputation', status: 'coming-soon' as const, price: 'Pricing to be announced', desc: 'Automated review requests and reputation management — not yet live.' },
+  { name: 'Marketing Studio', status: 'coming-soon' as const, price: 'Pricing to be announced', desc: 'Campaigns and social scheduling — not yet live.' },
+  { name: 'Website & custom domain', status: 'coming-soon' as const, price: 'Pricing to be announced', desc: 'A booking page and brand presence on your own domain — not yet live.' },
 ];
 
 const FAQ = [
@@ -78,10 +93,39 @@ export default function PricingPage() {
                 <span className="muted" style={{ fontSize: 14 }}>/mo USD</span>
               </div>
               <p className="muted" style={{ fontSize: 13, minHeight: 40 }}>{p.blurb}</p>
+              <div className="tag" style={{ marginBottom: 10, display: 'inline-block' }}>{p.limit}</div>
               <ul>
-                {p.features.map((f) => <li key={f}>{f}</li>)}
+                {p.includes.map((f) => <li key={f}>{f}</li>)}
               </ul>
-              <Link href={(p as any).custom ? '/contact' : '/signup'} className={p.popular ? 'btn' : 'btn ghost'}>
+              {p.beta.length > 0 && (
+                <>
+                  <div className="muted" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', margin: '10px 0 4px' }}>In beta</div>
+                  <ul>
+                    {p.beta.map((f) => (
+                      <li key={f}>
+                        <span style={{ flex: 1, display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+                          <span>{f}</span> <StatusBadge status="beta" />
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              {p.comingSoon.length > 0 && (
+                <>
+                  <div className="muted" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', margin: '10px 0 4px' }}>Coming soon</div>
+                  <ul>
+                    {p.comingSoon.map((f) => (
+                      <li key={f}>
+                        <span style={{ flex: 1, display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+                          <span>{f}</span> <StatusBadge status="coming-soon" />
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              <Link href={(p as any).custom ? '/contact' : '/signup'} className={p.popular ? 'btn' : 'btn ghost'} style={{ marginTop: 10 }}>
                 {(p as any).custom ? 'Talk to us' : 'Get Started'}
               </Link>
             </div>
@@ -93,7 +137,7 @@ export default function PricingPage() {
         <div className="mk-section-head" style={{ marginBottom: 28 }}>
           <span className="mk-kicker">Add-ons</span>
           <h2 className="mk-h2" style={{ fontSize: 'clamp(22px, 3vw, 30px)' }}>Grow the stack as it ships</h2>
-          <p className="muted">Add-ons tied to beta or coming-soon capabilities don’t have final pricing yet — we’d rather say that than guess.</p>
+          <p className="muted">Add-ons tied to beta or coming-soon capabilities will have pricing announced as they reach general availability. Contact us for current availability.</p>
         </div>
         <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
           {ADDONS.map((a) => (

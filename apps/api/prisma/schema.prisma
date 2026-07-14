@@ -1566,16 +1566,24 @@ model UsageRecord {
 // tenant-agnostic — a prospect has no tenant yet — so this is accessed via
 // the base Prisma client, never the tenant-scoped `.db` extension.
 
+enum ContactSubmissionStatus {
+  NEW
+  READ
+  RESOLVED
+}
+
 model PublicContactSubmission {
-  id        String   @id @default(cuid())
+  id        String                  @id @default(cuid())
   name      String
   email     String
   company   String?
-  topic     String   @default("general") // general/sales/support/security
+  topic     String                  @default("general") // general/sales/support/security
   message   String
+  status    ContactSubmissionStatus @default(NEW)
   /// SHA-256 of the submitting IP, kept only for abuse triage — never the raw IP.
   ipHash    String?
-  createdAt DateTime @default(now())
+  createdAt DateTime                @default(now())
 
   @@index([createdAt])
+  @@index([status, createdAt])
 }
