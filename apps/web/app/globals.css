@@ -666,3 +666,19 @@ button:disabled, input:disabled, select:disabled { opacity: 0.5; cursor: not-all
   display: flex; align-items: center; justify-content: center; gap: 8px;
 }
 .collapse-btn:hover { color: var(--text); border-color: var(--border-strong); }
+
+/* ── Public website: truthful status badges + trust/legal page layout ───── */
+.chip.muted { color: var(--muted); border-color: var(--border); background: rgba(255, 255, 255, 0.02); }
+.status-note { color: var(--muted); font-size: 12.5px; line-height: 1.6; margin: 6px 0 0; }
+.sample-flag {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 11px; padding: 3px 10px;
+  border-radius: 999px; border: 1px dashed var(--border-strong); color: var(--muted);
+  background: rgba(255, 255, 255, 0.02); margin-bottom: 14px;
+}
+.legal-doc { max-width: 760px; margin: 0 auto; padding: 20px 0 60px; line-height: 1.75; color: var(--muted); }
+.legal-doc h1 { color: var(--text); margin-bottom: 6px; }
+.legal-doc h2 { color: var(--text); font-size: 18px; margin: 34px 0 10px; }
+.legal-doc p, .legal-doc li { font-size: 14.5px; }
+.legal-doc .updated { font-size: 12.5px; margin-bottom: 30px; }
+.contact-form { max-width: 520px; margin: 0 auto; }
+.contact-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }

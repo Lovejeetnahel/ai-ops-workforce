@@ -1,57 +1,64 @@
 import Link from 'next/link';
+import type { Metadata } from 'next';
+import { StatusBadge } from '../../../components/StatusBadge';
+import { industryStatusList, INDUSTRIES_COMING_SOON } from '../../../lib/product-status';
 
-/** Phase 1 catalog: 14 field-service trades live now, plus the two other live engines. */
-const LIVE_NOW = [
-  { ico: '❄️', name: 'HVAC', desc: 'Emergency triage, seasonal tune-up campaigns and equipment history per home.' },
-  { ico: '🔧', name: 'Plumbing', desc: 'From burst-pipe emergency to paid invoice without a missed call.' },
-  { ico: '⚡', name: 'Electrical', desc: 'Service calls and project quotes with permit tracking built in.' },
-  { ico: '🏠', name: 'Roofing', desc: 'Inspection-to-insurance-to-install pipeline with photo reports.' },
-  { ico: '🧹', name: 'Cleaning Services', desc: 'Recurring schedules, crew routing and quality checklists.' },
-  { ico: '🌿', name: 'Landscaping', desc: 'Seasonal contracts, route days and weather rescheduling.' },
-  { ico: '🐜', name: 'Pest Control', desc: 'Treatment plans, chemical logs and quarterly recurring billing.' },
-  { ico: '🔑', name: 'Locksmith', desc: 'Win the lockout call — AI answers, quotes and dispatches in seconds.' },
-  { ico: '🔌', name: 'Appliance Repair', desc: 'Diagnose, order parts, return visit — tracked end to end.' },
-  { ico: '🚪', name: 'Garage Door', desc: 'Emergency repairs and install projects booked while you sleep.' },
-  { ico: '🎨', name: 'Painting', desc: 'Estimates, crews and follow-ups that fill your calendar.' },
-  { ico: '💦', name: 'Pressure Washing', desc: 'Quote fast, book routes, rebook every season automatically.' },
-  { ico: '🪟', name: 'Window Cleaning', desc: 'Recurring residential routes and commercial contracts.' },
-  { ico: '🚛', name: 'Junk Removal', desc: 'Photo quotes, same-day dispatch and instant payment.' },
-  { ico: '🏢', name: 'Real Estate', desc: 'Leasing, property management, brokerages and investors — tenant requests, vendor dispatch and owner reporting in one place.' },
-  { ico: '💼', name: 'Professional Services', desc: 'Client work, cases and retainers for law firms, accountants, consultants and agencies.' },
-];
-
-const COMING = [
-  ['💇', 'Hair Salons & Barbershops'], ['💅', 'Nail Salons & Spas'], ['🚗', 'Auto Repair & Detailing'],
-  ['🐕', 'Pet Grooming & Boarding'], ['🏋️', 'Gyms & Studios'], ['🩺', 'Clinics & Wellness'],
-  ['🛡️', 'Security Companies'], ['🍽️', 'Restaurants & Cafes'],
-];
+export const metadata: Metadata = {
+  title: 'Sofilic Industries — Which Businesses Sofilic Supports Today',
+  description: 'The exact industries available at signup today, read from the same catalog the signup form uses — plus what’s coming next.',
+  alternates: { canonical: 'https://sofilic.com/industries' },
+};
 
 export default function IndustriesPage() {
+  const live = industryStatusList();
+
   return (
     <main className="mk-main">
       <section className="hero" style={{ padding: '64px 0 20px' }}>
         <h1 style={{ fontSize: 'clamp(30px, 5vw, 48px)' }}>
-          Pick your industry. <span className="grad-text">Sofilic does the rest.</span>
+          Pick your industry. <span className="grad-text">Sofilic configures itself.</span>
         </h1>
         <p className="hero-sub">
-          Choose your business type at signup and Sofilic configures the pipeline, vocabulary,
-          documents and automations for how your industry actually works.
+          Sofilic is one product, one backend and one data model. Choosing your industry at signup
+          applies a preset on top of it — your vocabulary, your navigation, and your seeded
+          automations — without a separate app to build or maintain.
         </p>
       </section>
 
       <section className="mk-section" style={{ paddingTop: 30 }}>
         <div className="mk-section-head" style={{ marginBottom: 28 }}>
           <span className="mk-kicker">Live today</span>
-          <h2 className="mk-h2" style={{ fontSize: 'clamp(22px, 3vw, 30px)' }}>16 industries, ready at signup</h2>
+          <h2 className="mk-h2" style={{ fontSize: 'clamp(22px, 3vw, 30px)' }}>{live.length} industries, ready at signup</h2>
+          <p className="muted">This count comes directly from the same industry catalog the signup form uses — it can’t drift out of sync.</p>
         </div>
         <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
-          {LIVE_NOW.map((ind) => (
-            <div className="panel lift feature-card" key={ind.name}>
-              <div className="feature-ico">{ind.ico}</div>
-              <h4>{ind.name}</h4>
-              <p>{ind.desc}</p>
+          {live.map((ind) => (
+            <div className="panel lift feature-card" key={ind.key}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div className="feature-ico">{ind.icon}</div>
+                <StatusBadge status={ind.status} />
+              </div>
+              <h4>{ind.label}</h4>
+              <p>{ind.tagline}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      <section className="mk-section" style={{ paddingTop: 10 }}>
+        <div className="panel" style={{ padding: '32px 30px' }}>
+          <span className="mk-kicker">How this actually works</span>
+          <h2 className="mk-h2" style={{ fontSize: 'clamp(20px, 3vw, 26px)', marginTop: 8 }}>Engines, presets and universal workspaces</h2>
+          <p className="muted" style={{ maxWidth: 720, lineHeight: 1.75 }}>
+            Under the hood, every tenant runs on one of a small number of shared <strong>engines</strong>{' '}
+            (the core data model and workflow logic — for example, the field-service engine covers jobs,
+            dispatch and quotes). An industry <strong>preset</strong>{' '}
+            layers your vocabulary, navigation
+            and starter automations on top of the right engine, and every tenant — regardless of
+            industry — shares the same <strong>universal workspaces</strong>: CRM, Automation, Payments,
+            Dashboard and Settings. This is deliberate: it means adding support for a new trade is a
+            configuration change, not a new product to build and maintain separately.
+          </p>
         </div>
       </section>
 
@@ -59,17 +66,20 @@ export default function IndustriesPage() {
         <div className="mk-section-head" style={{ marginBottom: 28 }}>
           <span className="mk-kicker">Rolling out next</span>
           <h2 className="mk-h2" style={{ fontSize: 'clamp(22px, 3vw, 30px)' }}>The rest of local business</h2>
-          <p className="muted">Appointments, coverage and professional-service industries land in the next waves.</p>
+          <p className="muted">These don’t have a preset yet — picking your industry at signup won’t include them today.</p>
         </div>
         <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
-          {COMING.map(([ico, name]) => (
-            <div className="industry-pill" key={name}><span>{ico}</span> {name}</div>
+          {INDUSTRIES_COMING_SOON.map((ind) => (
+            <div className="industry-pill" key={ind.label} style={{ justifyContent: 'space-between' }}>
+              <span><span>{ind.icon}</span> {ind.label}</span>
+              <StatusBadge status="coming-soon" />
+            </div>
           ))}
         </div>
       </section>
 
       <section className="final-cta">
-        <h2>Don’t see your trade? The general Field Services setup adapts to any mobile workforce.</h2>
+        <h2>Don’t see your trade? General Field Services adapts to most mobile workforces.</h2>
         <div className="hero-ctas" style={{ marginTop: 20 }}>
           <Link href="/signup" className="btn">Get Started</Link>
         </div>

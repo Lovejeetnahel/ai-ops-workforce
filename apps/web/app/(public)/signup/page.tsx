@@ -2,29 +2,17 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
+import { listPresets } from '@aiow/config';
 import { api } from '../../../lib/api';
 import { SofilicMark } from '../../../components/Logo';
 
-/** Offline fallback mirroring the Phase 1 preset catalog served by /tenants/presets. */
-const FALLBACK_PRESETS = [
-  { key: 'hvac', engine: 'FIELD_SERVICES', label: 'HVAC', tagline: 'Answer every call, book every job, dispatch the right tech.', icon: '❄️' },
-  { key: 'plumbing', engine: 'FIELD_SERVICES', label: 'Plumbing', tagline: 'From burst-pipe emergency to paid invoice.', icon: '🔧' },
-  { key: 'electrical', engine: 'FIELD_SERVICES', label: 'Electrical', tagline: 'Book service calls and win project quotes.', icon: '⚡' },
-  { key: 'roofing', engine: 'FIELD_SERVICES', label: 'Roofing', tagline: 'Inspections to insurance to installed roof.', icon: '🏠' },
-  { key: 'cleaning', engine: 'FIELD_SERVICES', label: 'Cleaning Services', tagline: 'Recurring schedules, five-star clients.', icon: '🧹' },
-  { key: 'landscaping', engine: 'FIELD_SERVICES', label: 'Landscaping', tagline: 'Seasonal contracts that run themselves.', icon: '🌿' },
-  { key: 'pest_control', engine: 'FIELD_SERVICES', label: 'Pest Control', tagline: 'Treatments, plans and compliance logs.', icon: '🐜' },
-  { key: 'locksmith', engine: 'FIELD_SERVICES', label: 'Locksmith', tagline: 'Win the lockout call in sixty seconds.', icon: '🔑' },
-  { key: 'appliance_repair', engine: 'FIELD_SERVICES', label: 'Appliance Repair', tagline: 'Diagnose, order parts, return, fix.', icon: '🔌' },
-  { key: 'garage_door', engine: 'FIELD_SERVICES', label: 'Garage Door Services', tagline: 'Repairs and installs booked while you sleep.', icon: '🚪' },
-  { key: 'painting', engine: 'FIELD_SERVICES', label: 'Painting', tagline: 'Estimates and crews that fill your calendar.', icon: '🎨' },
-  { key: 'pressure_washing', engine: 'FIELD_SERVICES', label: 'Pressure Washing', tagline: 'Quote fast, book routes, rebook seasons.', icon: '💦' },
-  { key: 'window_cleaning', engine: 'FIELD_SERVICES', label: 'Window Cleaning', tagline: 'Recurring routes on autopilot.', icon: '🪟' },
-  { key: 'junk_removal', engine: 'FIELD_SERVICES', label: 'Junk Removal', tagline: 'Photo quotes, same-day dispatch.', icon: '🚛' },
-  { key: 'field_services', engine: 'FIELD_SERVICES', label: 'General Field Services', tagline: 'Any mobile workforce.', icon: '🚐' },
-  { key: 'property_management', engine: 'PROPERTY_MANAGEMENT', label: 'Real Estate', tagline: 'Leasing, property management and brokerages in one place.', icon: '🏢' },
-  { key: 'service_agencies', engine: 'SERVICE_AGENCIES', label: 'Professional Services', tagline: 'Client work, cases and retainers.', icon: '💼' },
-];
+/**
+ * Offline fallback if `/tenants/presets` doesn't respond — read from the same
+ * `@aiow/config` catalog the API serves, not a hand-maintained duplicate, so
+ * this can never list a different set of industries than the live endpoint.
+ */
+const FALLBACK_PRESETS: { key: string; engine: string; label: string; tagline: string; icon: string }[] =
+  listPresets().map((p) => ({ key: p.key, engine: p.engine as string, label: p.label, tagline: p.tagline, icon: p.icon }));
 
 const COUNTRIES = ['United States', 'Canada', 'United Kingdom', 'Australia', 'New Zealand', 'Ireland', 'Other'];
 const BUSINESS_SIZES = ['Just me', '2–5 people', '6–15 people', '16–50 people', '50+ people'];

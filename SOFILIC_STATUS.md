@@ -1,7 +1,7 @@
 # SOFILIC — Project Status & Constitution
 *Read this file first in any new session, on any device. It is the single source of truth for where this project stands and the rules that govern it.*
 
-Last updated: 2026-07-12
+Last updated: 2026-07-14
 
 ---
 
@@ -106,3 +106,54 @@ Release details:
 2. Tell Claude: *"Read SOFILIC_STATUS.md and continue from there."*
 3. State what you want to do next. If it's a new phase or new nav item, Claude should ask for confirmation per the Constitution — that's expected, not a bug.
 4. At the end of a working session, ask Claude to update Section 3 of this file before you stop, so the next session (any device) picks up accurately.
+
+---
+
+## 6. Public website releases
+
+**This is separate from the Phase numbering in Section 3** — Phase 2 (the authenticated product) is deployed and unaffected by this work. Website releases only touch the public marketing site (`apps/web/app/(public)/*`) plus one small, isolated, additive backend module for the Contact form.
+
+### Website Release 1 — Trust, Accuracy and Consistency: 🟡 BUILT, NOT MERGED, NOT DEPLOYED (2026-07-14)
+
+Awaiting founder review before merge, per explicit instruction — `main` has not been touched by this work.
+
+- **Branch:** `website/release-1-trust-accuracy` (from latest `main` post-Phase-2-deploy).
+- **PR:** draft, not yet merged — see the PR list for the exact number; title `Public Website Release 1 — Trust, Accuracy and Consistency`.
+
+**Files changed:**
+- New: `apps/web/lib/product-status.ts` (the single source of truth for Live/Beta/Limited/Coming-soon claims), `apps/web/components/StatusBadge.tsx`, `apps/web/app/(public)/{contact,support,security,privacy,terms}/*`, `apps/web/app/(public)/{login,signup}/layout.tsx` (per-route metadata for the two client-component auth pages), `apps/api/src/public/*` (Contact form module: controller, service, IP-based rate-limit guard), `apps/api/prisma/migrations/20260714144617_add_public_contact_submission/`.
+- Modified: `apps/web/app/(public)/{page,features,industries,pricing,demo,resources,signup,layout}.tsx`, `apps/web/app/layout.tsx`, `apps/web/app/globals.css` (additive classes only), `apps/web/lib/api.ts` (added `contactUs`), `apps/api/prisma/schema.prisma` (new `PublicContactSubmission` global model), `apps/api/src/common/prisma/prisma.service.ts` (registered the new model as tenant-agnostic), `apps/api/src/app.module.ts` (registered `PublicModule`), `apps/api/src/health.controller.ts` (service name only).
+
+**Product-status source created:** `apps/web/lib/product-status.ts` defines `MODULE_STATUS`, `INTEGRATION_STATUS`, and `industryStatusList()` (which reads live from `@aiow/config`'s `listPresets()` — never a hand-maintained duplicate). The Homepage, Features, Industries and Pricing pages all consume this instead of hardcoding their own claims.
+
+**Claims removed or corrected:**
+- Fake customer logo row and three fabricated named testimonials (Rachel N., Devon M., Aisha S.) — replaced with explicitly-labeled fictional "Example scenarios."
+- Unverifiable performance claim ("90 sec missed call → booked job") — removed everywhere it appeared (homepage, demo page).
+- Absolute claims ("never drifts", implied GDPR/PIPEDA certification) — reworded to describe what's actually built, with an explicit "we do not hold a formal compliance certification today" disclaimer on the new Security page.
+- Mock dashboard preview numbers on the homepage — now carry a visible "Example data — not a real customer account" flag.
+- Demo page renamed in nav/metadata to "Example Workflow"; copy now explicitly says it's fictional and that automated call-answering is beta, not a recording of a real call.
+- Features page hero claim "no add-on modules, no per-feature pricing surprises" — removed (it directly contradicted the Pricing page's add-ons section).
+- Corrected two real overclaims found only by reading the actual frontend code, not docs: "Customer Portal" was claimed live but the in-app page is explicitly self-labeled "Preview" with only empty states (now Beta); "Notifications", "Dispatch", "Scheduling" and "Executive Briefing" have real backend endpoints but zero frontend surface in the shipped Rev-2 app (now Coming soon, not Live).
+- "Talk Enterprise" / "Talk to Enterprise" now links to `/contact`, not back to `/pricing`.
+- Industries page and the signup form's industry dropdown both now render from the exact same `listPresets()` call — both show 17, verified live in a browser in the same session (previously the signup page had a second hand-maintained 17-row duplicate array that could have drifted).
+
+**Legal and trust pages added:** `/privacy`, `/terms`, `/contact`, `/support`, `/security` — all real routes, linked consistently in the footer of every public page. No company legal entity name, registered address, jurisdiction, phone number, or compliance certification is asserted anywhere — a repo-wide search found none on file, so none were invented; Privacy/Terms explicitly note these will be added once finalized and direct all requests to the Contact form.
+
+**Contact implementation:** `POST /api/public/contact` — a new, additive, unauthenticated endpoint (mirrors the existing public-signup convention in `TenantsController`, so no new auth pattern was introduced). Validates input via the existing global `ValidationPipe` (`whitelist` + `forbidNonWhitelisted`), rate-limits by IP (5/min, fixed-window via Redis, fails open on a Redis outage — same technique as the existing `ApiScopeGuard`), and has a honeypot field (`website`) that returns a fake success without writing anything if filled. Storage is a new tenant-agnostic `PublicContactSubmission` model (a prospect has no tenant yet) — accessed via the base Prisma client, the same convention already used for `Tenant`/`Message`/`Organization`. Only a SHA-256 hash of the submitting IP is kept, never the raw IP. No tenant data is touched or exposed.
+
+**Pricing corrections:** kept the existing five-tier structure and price points (no current, non-superseded source of truth mandates a different model). Fixed internal consistency: currency (USD) and billing period (monthly) are now stated explicitly; "Is there a free trial?" no longer invents an unbounded free trial — it accurately describes no-card-required signup plus the real 14-day trial that begins when a paid plan is chosen (`Subscription.trialEndsAt` in `billing.service.ts`); removed fabricated per-addon dollar amounts (Voice minutes $0.20/min, Reviews Pro $49/mo, Marketing Pro $49/mo, Website $29/mo) that existed nowhere in the actual billing config — beta/coming-soon add-ons now say "Pricing to be confirmed" instead of guessing; no refund policy, annual discount or tax handling is asserted (none exists in any approved source).
+
+**Industry corrections:** the public Industries page now derives its count and cards directly from `listPresets()` (17 total: 14 field-service trades + General Field Services + Real Estate + Professional Services), matching the signup form exactly by construction. Added a plain-language "Engines, presets and universal workspaces" explainer per the Constitution's "one product" principle, so the page doesn't imply 17 separately-built apps.
+
+**Integration-status corrections:** Stripe, Twilio, SendGrid and the Public API are shown Live (own-account connection required); Vapi Voice is Beta; Google Calendar, QuickBooks/Xero, social platforms and Zapier/webhooks are Coming soon — all driven from `INTEGRATION_STATUS` in the new config file, shown on the Features page (not duplicated on the homepage).
+
+**Verification performed:** `@aiow/config` + API + web builds clean (36 routes total, zero type errors); 16/16 existing jest tests pass; a real local Postgres(pgvector)+Redis stack — generated the new migration with `prisma migrate dev`, caught and hand-fixed a dangerous side effect (see Limitations below), then verified with a full `prisma migrate reset` + `migrate deploy` replay that the final committed migration is purely additive and the pgvector HNSW indexes survive intact; live contact-form tests (happy path stored correctly, honeypod path returns success but writes nothing, invalid email → 400, missing field → 400, unexpected field → 400 via `forbidNonWhitelisted`, rate limit trips at 5/min and recovers); tenant isolation re-verified live (two tenants, second sees zero foreign data); headless-browser pass over all 13 public pages plus a representative mobile-viewport pass — zero console errors, zero failed requests; authenticated app re-verified — `/crm /sales /automation /payments /voice-ai /settings /conversations /apps` all still 200 with zero console errors; confirmed no secrets in the diff; confirmed the health endpoint now returns `sofilic-api`.
+
+**Honest remaining limitations:**
+- The Resources page is intentionally small (6 real links) rather than a full guide/documentation library — there isn't one yet, and the instruction was to remove or replace anything that doesn't link somewhere real.
+- Privacy/Terms deliberately do not name a legal entity, address or jurisdiction — none exists anywhere in the repo today; a founder needs to supply this before it's legally complete.
+- The Contact form has no admin UI to read submissions yet — they land in the new `PublicContactSubmission` table, queryable directly, but there's no in-app inbox for them (out of scope for a website-truthfulness release; flagged here, not silently built).
+- Add-on pricing for beta/coming-soon capabilities (Voice minutes, Reviews, Marketing, Websites) is explicitly marked "to be confirmed" — a real founder decision, not something to invent.
+- **A real risk was found and fixed during this work, worth a founder's awareness:** `prisma migrate dev` auto-generated a migration that also silently DROPPED the two production pgvector HNSW search indexes (because they were originally created via raw SQL that Prisma's schema-diffing can't see). This was caught before commit, the migration file was hand-corrected to only add the new table, and a full reset-and-replay confirmed the indexes now survive. This is a standing hazard for **any** future `prisma migrate dev` run against this schema — always diff-review a generated migration before committing it.
+
+**Exact next website release:** not defined or approved. Do not begin "Website Release 2" or any product-phase work (Phase 3) without the founder explicitly choosing and approving it in a session — this file being read is not itself approval.
