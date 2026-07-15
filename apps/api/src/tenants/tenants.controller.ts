@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
-import { IsArray, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
+import { Body, Controller, Get, Patch, Post, UseGuards } from '@nestjs/common';
+import { IsArray, IsBoolean, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
 import { IndustryModule, UserRole } from '@prisma/client';
 import { listModules, listPresets } from '@aiow/config';
 import { RolesGuard } from '../common/rbac/roles.guard';
@@ -8,14 +8,20 @@ import { TenantsService } from './tenants.service';
 
 class CreateTenantDto {
   @IsString() name: string;
+  @IsString() firstName: string;
+  @IsString() lastName: string;
   @IsString() ownerEmail: string;
-  @IsString() ownerPassword: string;
+  @IsString() @MinLength(8) ownerPassword: string;
   @IsEnum(IndustryModule) industryModule: IndustryModule;
   // Phase 1 onboarding fields — all optional so existing callers keep working.
   @IsOptional() @IsString() presetKey?: string;
   @IsOptional() @IsString() country?: string;
   @IsOptional() @IsString() businessSize?: string;
   @IsOptional() @IsString() teamSize?: string;
+  // Website Release 2: required Terms/Privacy acceptance + optional, separate,
+  // unchecked-by-default marketing consent.
+  @IsBoolean() termsAccepted: boolean;
+  @IsOptional() @IsBoolean() marketingConsent?: boolean;
 }
 
 class CreateStaffDto {
@@ -25,6 +31,12 @@ class CreateStaffDto {
   @IsEnum(UserRole) role: UserRole;
   @IsOptional() @IsArray() skills?: string[];
   @IsOptional() @IsArray() serviceZones?: string[];
+}
+
+class UpdateOnboardingDto {
+  @IsOptional() @IsArray() completedSteps?: string[];
+  @IsOptional() @IsBoolean() skipped?: boolean;
+  @IsOptional() @IsBoolean() dashboardReached?: boolean;
 }
 
 @Controller('tenants')
@@ -68,5 +80,13 @@ export class TenantsController {
   @Roles('OWNER')
   createStaff(@Body() dto: CreateStaffDto) {
     return this.tenants.createStaffUser(dto);
+  }
+
+  /** First-time onboarding progress — stored additively in Tenant.settings. */
+  @Patch('onboarding')
+  @UseGuards(RolesGuard)
+  @Roles('STAFF')
+  updateOnboarding(@Body() dto: UpdateOnboardingDto) {
+    return this.tenants.updateOnboarding(dto);
   }
 }

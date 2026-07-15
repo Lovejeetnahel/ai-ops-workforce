@@ -78,6 +78,7 @@ export default function Dashboard() {
   const [ov, setOv] = useState<any>(null);
   const [exec, setExec] = useState<any>(null);
   const [saved, setSaved] = useState<any[] | null>(null);
+  const [showOnboardingBanner, setShowOnboardingBanner] = useState(false);
 
   useEffect(() => {
     try {
@@ -85,6 +86,9 @@ export default function Dashboard() {
       if (u?.tenant?.name) setBusinessName(u.tenant.name);
     } catch {}
     api.overview().then(setOv).catch(() => setOv(false));
+    api.currentTenant().then((t) => {
+      setShowOnboardingBanner(!t?.settings?.onboardingProgress?.dashboardReached);
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -115,6 +119,16 @@ export default function Dashboard() {
         </div>
         {businessName && <span className="badge">{businessName}</span>}
       </div>
+
+      {showOnboardingBanner && (
+        <div className="panel glow" style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <span>👋 Finish setting up your account — confirm details, see your modules, and add your first lead.</span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Link href="/onboarding" className="btn sm">Continue setup</Link>
+            <button className="btn ghost sm" onClick={() => setShowOnboardingBanner(false)}>Dismiss</button>
+          </div>
+        </div>
+      )}
 
       <div className="tabs">
         <button className={`tab ${tab === 'overview' ? 'active' : ''}`} onClick={() => setTab('overview')}>Overview</button>

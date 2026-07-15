@@ -10,6 +10,7 @@ import { NotificationsMenu } from '../../components/NotificationsMenu';
 import { CommandPalette } from '../../components/CommandPalette';
 
 const PAGE_TITLES: Record<string, string> = {
+  '/onboarding': 'Getting Started',
   '/dashboard': 'Dashboard',
   '/crm': 'CRM',
   '/sales': 'Sales',

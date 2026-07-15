@@ -1,5 +1,5 @@
 import { Body, Controller, HttpException, HttpStatus, Post, Req } from '@nestjs/common';
-import { IsEmail, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
 import { Request } from 'express';
 import IORedis from 'ioredis';
 import { AuthService } from './auth.service';
@@ -7,6 +7,14 @@ import { AuthService } from './auth.service';
 class LoginDto {
   @IsEmail() email: string;
   @IsString() @MinLength(6) password: string;
+}
+
+class RefreshDto {
+  @IsString() refreshToken: string;
+}
+
+class LogoutDto {
+  @IsOptional() @IsString() refreshToken?: string;
 }
 
 /** Max login attempts per IP per minute before 429. Fail-open on Redis error. */
@@ -38,5 +46,17 @@ export class AuthController {
       // Redis unavailable — fail open, do not block the request
     }
     return this.auth.login(dto.email, dto.password);
+  }
+
+  /** Exchanges a refresh token for a new access+refresh pair (rotates the old one). */
+  @Post('refresh')
+  refresh(@Body() dto: RefreshDto) {
+    return this.auth.refresh(dto.refreshToken);
+  }
+
+  /** Revokes the presented refresh token. Always succeeds — logout never surfaces an error. */
+  @Post('logout')
+  logout(@Body() dto: LogoutDto) {
+    return this.auth.logout(dto.refreshToken);
   }
 }
