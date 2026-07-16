@@ -232,6 +232,13 @@ model User {
   contact      Contact?      @relation(fields: [contactId], references: [id])
   teamId       String?
   team         Team?         @relation(fields: [teamId], references: [id])
+  // Terms/Privacy acceptance at signup (Website Release 2). Nullable so
+  // existing users are unaffected and never blocked from signing in.
+  termsAcceptedAt      DateTime?
+  termsVersion         String?
+  // Separate, unchecked-by-default marketing opt-in — never implied by ToS acceptance.
+  marketingConsent     Boolean   @default(false)
+  marketingConsentAt   DateTime?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
@@ -1586,4 +1593,39 @@ model PublicContactSubmission {
 
   @@index([createdAt])
   @@index([status, createdAt])
+}
+
+// ═══════════════════ Auth: password reset + refresh sessions (Website Release 2) ═══════════════════
+// Both models use a plain scalar `userId` (no Prisma relation on User) to keep
+// this additive and fully decoupled from the User model's existing shape —
+// same convention already used elsewhere (AgentTask.contactId, TimeEntry, etc).
+
+/// A single-use, expiring password-reset token. Only a SHA-256 hash of the
+/// actual token is ever stored — the raw token exists only in the reset link
+/// and is never logged. `usedAt` enforces single-use; expired/used tokens are
+/// rejected without revealing which reason to the caller.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+/// Tracks issued refresh tokens so they can be revoked (e.g. on password
+/// reset or explicit logout) — the JWT itself is stateless/self-verifying,
+/// this table only records which ones are still valid. Only a SHA-256 hash
+/// of the refresh JWT is stored, never the raw token.
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
 }

@@ -1,4 +1,4 @@
-import { ArgumentsHost, Catch, ExceptionFilter, HttpStatus } from '@nestjs/common';
+import { ArgumentsHost, Catch, ExceptionFilter, HttpStatus, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { Response } from 'express';
 
@@ -15,6 +15,8 @@ import { Response } from 'express';
  */
 @Catch(Prisma.NotFoundError, Prisma.PrismaClientKnownRequestError)
 export class PrismaExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger(PrismaExceptionFilter.name);
+
   catch(exception: Prisma.NotFoundError | Prisma.PrismaClientKnownRequestError, host: ArgumentsHost) {
     const response = host.switchToHttp().getResponse<Response>();
     const isNotFound = exception instanceof Prisma.NotFoundError || (exception as Prisma.PrismaClientKnownRequestError).code === 'P2025';
@@ -22,6 +24,10 @@ export class PrismaExceptionFilter implements ExceptionFilter {
       response.status(HttpStatus.NOT_FOUND).json({ statusCode: 404, message: 'Resource not found', error: 'Not Found' });
       return;
     }
+    // Any other Prisma error reaching here is unexpected — log it server-side
+    // (never in the response body) so a real defect doesn't disappear as a
+    // silent, unexplained 500.
+    this.logger.error(exception.message, exception.stack);
     response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ statusCode: 500, message: 'Internal server error' });
   }
 }
