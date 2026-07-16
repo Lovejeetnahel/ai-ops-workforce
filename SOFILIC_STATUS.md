@@ -1,7 +1,7 @@
 # SOFILIC — Project Status & Constitution
 *Read this file first in any new session, on any device. It is the single source of truth for where this project stands and the rules that govern it.*
 
-Last updated: 2026-07-15
+Last updated: 2026-07-16
 
 ---
 
@@ -169,13 +169,14 @@ Release details:
 - `ADMIN_API_TOKEN` is a new required-in-production environment variable — **the API will refuse to boot without it** once this release is deployed. It must be generated and added to the server's `.env` before the deploy's rebuild step (see the Termius block).
 - The pgvector-HNSW-index-drop hazard (below) is a standing risk for any future `prisma migrate dev` run on this schema, by anyone, not specific to this release.
 
-**Exact next website release:** Website Release 2 — Authentication, Signup and Onboarding — is now in progress; see below. Do not begin Website Release 3 or any product-phase work (Phase 3) without the founder explicitly choosing and approving it in a session — this file being read is not itself approval.
+**Exact next website release:** Website Release 2 — Authentication, Signup and Onboarding — is **approved and merged into `main`**; not yet deployed to production. Do not begin Website Release 3 or any product-phase work (Phase 3) without the founder explicitly choosing and approving it in a session — this file being read is not itself approval.
 
-### Website Release 2 — Authentication, Signup and Onboarding: 🟡 IMPLEMENTED, DRAFT PR OPEN — NOT MERGED, NOT DEPLOYED
+### Website Release 2 — Authentication, Signup and Onboarding: ✅ APPROVED, MERGED — NOT YET DEPLOYED
 
 - **Branch:** `website/release-2-auth-onboarding` (from `main` post-Release-1-merge, commit `dcecf18169a7271ae51c10175e31ad14762acf89`).
-- **PR:** draft, "Public Website Release 2 — Authentication, Signup and Onboarding" (link recorded once opened — see the delivery message in this session).
-- **Status:** implementation complete and verified locally. **Not merged into `main`. Not deployed.** Awaiting founder review/approval before either step, per this release's explicit instructions.
+- **PR:** [#5](https://github.com/Lovejeetnahel/ai-ops-workforce/pull/5) — `Public Website Release 2 — Authentication, Signup and Onboarding`. Approved by the founder and merged via a normal merge commit (no force-push, no history rewrite).
+- **Final merged commit on `main`:** `a484243b28d9246e4544328d61e37f72100bdb65`.
+- **Status:** implemented, final-reviewed, merged. **Not yet deployed to production** — merging `main` does not auto-deploy; the deploy is a separate, explicit step (Termius block issued alongside this record).
 
 **Section 1 — Login (`apps/web/app/(public)/login/page.tsx`):** show/hide password (new shared `PasswordField` component), client-side email format check, disabled+loading submit state with a `submitting` ref guard against double-submit (rapid double-click no longer fires two requests), distinct handling for invalid credentials (401 → generic "Invalid email or password", never reveals which field or whether the account exists), suspended/inactive account (403 → literal safe message "This account is not active. Contact support for help." — safe to show verbatim because it never confirms an email is registered, only that a matched account is inactive), rate limit (429 → "Too many attempts, try again shortly"), and network/server errors (safe generic message, real error text never surfaced to the user). Added links to `/forgot-password`, `/signup`, and `/support`. Bearer-token auth preserved unchanged; login now also persists the new refresh token via `saveSession()`.
 
@@ -202,6 +203,17 @@ Release details:
 - Password hashing (bcrypt, 12 rounds), CORS allowlist, secret/env validation, and tenant isolation were reviewed and found already correct — left unchanged.
 - Rate limiting: confirmed still enforced for login (10/min/IP — 11th rapid attempt correctly returned 429) and now also for the new forgot-password endpoint (5/min/IP). Noted, not changed: like the pre-existing login and Contact-form limiters, this guard fails open for a brief window immediately after a process restart while its Redis connection warms up — an accepted, pre-existing trade-off (documented in the code as intentional "fail open on a Redis outage"), not a regression introduced by this release. Redesigning that connection strategy across all three call sites was judged out of scope for an additive security review.
 
+### Final release review (2026-07-16, before merge)
+
+Three more genuine, reproduced defects were found and fixed additively during a final pre-merge pass, none requiring any redesign:
+
+- **Refresh-token JWT collision (real, reproduced):** JWTs are deterministic — signing the same claims at the same `iat` second produces a byte-identical token. Two refresh tokens issued for the same user within the same second (e.g. two browser tabs logging in at once, or a client that immediately calls `/auth/refresh` right after login) collided and crashed the following `RefreshToken.create()` on its unique `tokenHash` constraint, surfacing as an unexplained 500. Fixed by adding a random `jti` claim to the refresh token only (the access token is untouched). Live-verified: 5 concurrent same-second logins for one user all succeed, and an immediate refresh-after-login (the exact crash scenario) now works cleanly, while reuse of a rotated token, a logged-out token, and a malformed token all still correctly return 401.
+- **Onboarding banner would nag every existing production tenant (real, would have affected every current customer on deploy):** the dashboard's "finish setting up your account" banner showed whenever `onboardingProgress.dashboardReached` was falsy — which is true both for a genuinely new, unfinished signup **and** for every tenant that existed before this release (which has no `onboardingProgress` concept at all, and dismissing the banner doesn't persist across reloads). Fixed by having `TenantsService.provision()` always initialize `onboardingProgress` explicitly at signup (even all-`false`/empty), and changing the dashboard's condition to require the key to exist at all, not just be incomplete. Live-verified: a brand-new signup gets the banner; a tenant with `settings: {}` (simulating pre-Release-2 data) never sees it, on a fresh page load and after an explicit reload.
+- **Forgot-password wording overclaimed delivery:** both the API response and the frontend success screen said a reset link "has been sent" / "we've sent a link" unconditionally, which isn't true when SendGrid isn't configured (the flow still runs safely in stub/logged-only mode). Reworded both to: *"If an eligible account exists and email delivery is available, reset instructions will be sent."*
+- Also added server-side logging (never in the HTTP response) for any uncaught Prisma exception reaching the global exception filter — this gap is exactly why the refresh-token collision above initially surfaced as a silent, unexplained 500 with nothing in the server log to diagnose it from.
+
+All of the above were re-verified against a full local migration reset + replay + production-style `migrate deploy` (schema unaffected by these fixes — no new migration needed), the complete jest suite, the full live E2E auth/signup/reset/rate-limit/tenant-isolation/onboarding-resume pass, and headless-browser checks at desktop and iPhone viewports. GitHub Actions was green on the final commit (`5e52f8c`) before merge.
+
 **Section 8 — Database migrations:** one new migration, `apps/api/prisma/migrations/20260715064637_auth_release2_password_reset_refresh_terms/` — adds four nullable/defaulted columns to `User` (terms/marketing consent) and two new tables (`PasswordResetToken`, `RefreshToken`). As with every migration in this repo so far, `prisma migrate dev` initially auto-generated `DROP INDEX` statements for the two raw-SQL pgvector HNSW indexes (`KnowledgeChunk_embedding_hnsw_idx`, `EntityMemory_embedding_hnsw_idx`) as false-positive drift; both were manually removed from the migration before committing. Verified via a full local `prisma migrate reset --force --skip-seed` (replays every migration from empty) followed by `prisma migrate deploy` (the real production command, reports "No pending migrations to apply"), then a direct `pg_indexes` query confirming both HNSW indexes and all new columns/tables are present with correct types. No table, column or index was dropped; no destructive rollback migration was written (standing rollback approach, unchanged from prior releases: redeploy the previous image — the new columns/tables are harmless to leave in place).
 
 **New environment variables:** `PUBLIC_APP_URL` — the API's own knowledge of the website's public URL, used only to build the link inside password-reset emails (e.g. `https://sofilic.com/reset-password?token=...`); now **required in production** (`main.ts` refuses to boot without it, same pattern as `ADMIN_API_TOKEN`). Default for local dev: `http://localhost:3000`. Production value: `https://sofilic.com`. No other new variable names were introduced; `SENDGRID_API_KEY`/`SENDGRID_FROM_EMAIL` already existed from Release 1 and are simply now also relied on for password-reset delivery (documented in `.env.example`, not renamed or duplicated).
@@ -214,6 +226,6 @@ Release details:
 - Onboarding is a lightweight 4-step flow, not a full product module — it deliberately does not attempt guided setup for every possible integration, only the ones that already exist.
 - No in-app UI exists yet for a support/admin team to review password-reset or login activity beyond the existing `AuditLog` table and raw DB access — building one was out of scope for this release.
 
-**Founder decisions still required:** review and approve (or request changes to) this draft PR; decide whether/when to configure `SENDGRID_API_KEY`/`SENDGRID_FROM_EMAIL` for real password-reset email delivery in production; decide whether/when to merge and deploy. **Not merged. Not deployed. Main and production are unchanged by this release.**
+**Founder decisions still required:** decide whether/when to configure `SENDGRID_API_KEY`/`SENDGRID_FROM_EMAIL` for real password-reset email delivery in production (works safely without it, in logged-only stub mode); decide when to deploy. **PR #5 approved and merged (`a484243b28d9246e4544328d61e37f72100bdb65`). Not yet deployed — production is unchanged until the deployment steps below are run.**
 
 **Website Release 3:** not started, not defined, not approved. **Product Phase 3:** not started, not defined, not approved. Do not begin either without the founder explicitly choosing and approving it in a session.
