@@ -63,8 +63,13 @@ export class AuthService {
     const accessToken = await this.jwt.signAsync(claims, {
       expiresIn: process.env.JWT_EXPIRES_IN ?? '15m',
     });
+    // `jti` guarantees this refresh JWT is unique even when issued for the same
+    // user within the same second (same claims + iat would otherwise sign to
+    // the byte-identical token — e.g. two tabs logging in at once, or an
+    // immediate refresh-after-login — which previously crashed the following
+    // insert on RefreshToken's unique tokenHash constraint).
     const refreshToken = await this.jwt.signAsync(
-      { ...claims, typ: 'refresh' },
+      { ...claims, typ: 'refresh', jti: randomBytes(16).toString('hex') },
       { expiresIn: process.env.REFRESH_EXPIRES_IN ?? '30d' },
     );
     await this.prisma.refreshToken.create({

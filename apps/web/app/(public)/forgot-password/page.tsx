@@ -39,7 +39,7 @@ export default function ForgotPasswordPage() {
         <div className="auth-card">
           <SofilicMark size={40} animated />
           <h1>Check your email</h1>
-          <p className="sub">If an account exists for that email address, we&rsquo;ve sent a link to reset your password. It expires in 1 hour and can only be used once.</p>
+          <p className="sub">If an eligible account exists and email delivery is available, reset instructions will be sent. The link expires in 1 hour and can only be used once.</p>
           <div className="auth-foot">
             <Link href="/login">Back to sign in</Link>
           </div>

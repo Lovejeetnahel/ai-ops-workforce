@@ -55,8 +55,14 @@ export class TenantsService {
 
     // Phase 1 presets: onboarding answers land in Tenant.settings (Json) — no
     // schema change. presetKey drives per-industry nav/vocabulary at runtime.
-    const settings =
-      dto.presetKey || dto.country || dto.businessSize || dto.teamSize
+    // `onboardingProgress` is always initialized here (even all-empty/false) so
+    // the dashboard can tell "a tenant that signed up through this flow and
+    // hasn't finished onboarding yet" apart from a pre-Release-2 tenant that
+    // has no concept of onboarding at all — the latter's settings will simply
+    // never contain this key, and must never see the "finish setting up"
+    // banner nag on every dashboard load.
+    const settings = {
+      ...(dto.presetKey || dto.country || dto.businessSize || dto.teamSize
         ? {
             presetKey: dto.presetKey ?? null,
             onboarding: {
@@ -65,7 +71,9 @@ export class TenantsService {
               teamSize: dto.teamSize ?? null,
             },
           }
-        : undefined;
+        : {}),
+      onboardingProgress: { completedSteps: [], skipped: false, dashboardReached: false, updatedAt: now.toISOString() },
+    };
 
     // Tenant + owner created outside tenant context (base client).
     const tenant = await this.prisma.tenant.create({

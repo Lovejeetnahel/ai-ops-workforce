@@ -87,7 +87,12 @@ export default function Dashboard() {
     } catch {}
     api.overview().then(setOv).catch(() => setOv(false));
     api.currentTenant().then((t) => {
-      setShowOnboardingBanner(!t?.settings?.onboardingProgress?.dashboardReached);
+      // Only tenants that actually went through this release's signup flow
+      // ever have an `onboardingProgress` object at all — a tenant that
+      // existed before this release has no such concept and must never see
+      // this banner (there's nothing for it to "finish").
+      const progress = t?.settings?.onboardingProgress;
+      setShowOnboardingBanner(!!progress && !progress.dashboardReached);
     }).catch(() => {});
   }, []);
 

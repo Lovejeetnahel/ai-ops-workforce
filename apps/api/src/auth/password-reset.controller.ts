@@ -45,7 +45,7 @@ export class PasswordResetController {
         html: `<p>Hi ${name},</p><p>Use the link below to reset your Sofilic password. This link expires in 1 hour and can only be used once.</p><p><a href="${link}">${link}</a></p><p>If you didn't request this, you can safely ignore this email.</p>`,
       });
     });
-    return { ok: true, message: 'If that email is registered, a reset link has been sent.' };
+    return { ok: true, message: 'If an eligible account exists and email delivery is available, reset instructions will be sent.' };
   }
 
   @Post('reset-password')
