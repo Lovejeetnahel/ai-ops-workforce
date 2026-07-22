@@ -176,12 +176,14 @@ export class EmployeeController {
 
   @Get('tasks')
   @Roles('ADMIN')
-  tasks(@Query('agentKey') agentKey?: string) {
-    return this.prisma.db.agentTask.findMany({
+  async tasks(@Query('agentKey') agentKey?: string) {
+    const rows = await this.prisma.db.agentTask.findMany({
       where: { ...(agentKey ? { agentKey } : {}) },
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
+    // costMicros is a BigInt — JSON-serialize it as a string (never a lossy number).
+    return rows.map((t) => ({ ...t, costMicros: t.costMicros === null ? null : t.costMicros.toString() }));
   }
 
   @Get(':key/metrics')

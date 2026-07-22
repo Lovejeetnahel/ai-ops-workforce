@@ -705,3 +705,25 @@ button:disabled, input:disabled, select:disabled { opacity: 0.5; cursor: not-all
 .legal-doc .updated { font-size: 12.5px; margin-bottom: 30px; }
 .contact-form { max-width: 520px; margin: 0 auto; }
 .contact-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+
+/* ── AI Workforce (Phase 3) — additive only ── */
+.cc-input-row { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
+.cc-input-row .btn { flex-shrink: 0; }
+.cc-textarea {
+  flex: 1;
+  min-width: 220px;
+  width: 100%;
+  background: var(--panel-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  color: var(--text);
+  font: inherit;
+  font-size: 13.5px;
+  padding: 10px 12px;
+  resize: vertical;
+}
+.cc-textarea:focus { outline: none; border-color: var(--indigo); box-shadow: 0 0 0 3px rgba(255, 198, 41, 0.18); }
+[data-theme='light'] .cc-textarea { background: #fff; }
+/* Tables scroll inside their panel on small screens — the page never scrolls sideways. */
+.t-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.t-wrap table.t { min-width: 520px; }

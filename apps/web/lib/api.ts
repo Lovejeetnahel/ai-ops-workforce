@@ -115,6 +115,17 @@ export const api = {
   employees: () => request<any[]>(`/employees`),
   leaderboard: () => request<any[]>(`/employees/leaderboard`),
   runEmployee: (key: string, type: string) => request(`/employees/${key}/run`, { method: 'POST', body: JSON.stringify({ type }) }),
+  employeeTasks: (agentKey?: string) => request<any[]>(`/employees/tasks${agentKey ? `?agentKey=${encodeURIComponent(agentKey)}` : ''}`),
+  employeeMetrics: (key: string) => request<any>(`/employees/${key}/metrics`),
+  setEmployeeEnabled: (key: string, enabled: boolean) => request(`/employees/${key}/${enabled ? 'enable' : 'disable'}`, { method: 'POST' }),
+  patchEmployeeConfig: (key: string, body: Record<string, unknown>) => request(`/employees/${key}/config`, { method: 'PATCH', body: JSON.stringify(body) }),
+  runCommand: (text: string) => request<any>(`/employees/command`, { method: 'POST', body: JSON.stringify({ text }) }),
+  workforceApprovals: () => request<any[]>(`/employees/approvals`),
+  workforceApprovalsRecent: () => request<any[]>(`/employees/approvals/recent`),
+  approveAction: (id: string) => request(`/employees/approvals/${id}/approve`, { method: 'POST' }),
+  rejectAction: (id: string) => request(`/employees/approvals/${id}/reject`, { method: 'POST' }),
+  workforceUsage: () => request<any>(`/employees/usage`),
+  aiStatus: () => request<any>(`/employees/ai-status`),
 
   // automation
   automationRules: () => request<any[]>(`/automation/rules`),

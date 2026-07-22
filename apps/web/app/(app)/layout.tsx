@@ -12,6 +12,7 @@ import { CommandPalette } from '../../components/CommandPalette';
 const PAGE_TITLES: Record<string, string> = {
   '/onboarding': 'Getting Started',
   '/dashboard': 'Dashboard',
+  '/ai-workforce': 'AI Workforce',
   '/crm': 'CRM',
   '/sales': 'Sales',
   '/conversations': 'Conversations',

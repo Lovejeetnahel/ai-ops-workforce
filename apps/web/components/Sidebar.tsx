@@ -13,9 +13,15 @@ type NavSection = { title?: string; links: NavItem[] };
  * top-level item without explicit approval). This tree is static: industries
  * customize content via presets/templates, never the sidebar shape. The only
  * per-tenant variable is the small brand subtitle under the logo.
+ *
+ * "AI Workforce" was added as a founder-approved exception to the frozen nav
+ * (Phase 3, 2026-07-22): it is a core product pillar, inserted as its own
+ * section directly after Dashboard. Every pre-existing item keeps its exact
+ * label, href, icon and relative order.
  */
 const SECTIONS: NavSection[] = [
   { links: [{ href: '/dashboard', label: 'Dashboard', ico: '⌘' }] },
+  { links: [{ href: '/ai-workforce', label: 'AI Workforce', ico: '❖' }] },
   {
     title: 'CRM & Sales',
     links: [
