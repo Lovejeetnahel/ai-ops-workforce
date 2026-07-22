@@ -47,8 +47,8 @@ export class CollectionsEmployee extends BaseEmployeeAgent {
       const message = `Reminder: invoice "${inv.title}" for $${inv.amount ?? ''} is ${days} days past due.${payUrl ? ` Pay here: ${payUrl}` : ''}`;
 
       if (ctx.autonomous) {
-        if (contact?.email) await this.kit.tools.run('email', { to: contact.email, subject: 'Payment reminder', body: message });
-        else if (contact?.phone) await this.kit.tools.run('sms', { to: contact.phone, body: message });
+        if (contact?.email) await this.useTool(ctx, 'email', { to: contact.email, subject: 'Payment reminder', body: message }, { reason: `Invoice ${days}d overdue` });
+        else if (contact?.phone) await this.useTool(ctx, 'sms', { to: contact.phone, body: message }, { reason: `Invoice ${days}d overdue` });
       }
       await this.activity({ type: 'PAYMENT', title: `Collections AI reminder (${risk} risk, ${days}d overdue)`, body: message, contactId: inv.contactId, jobId: inv.jobId });
       await this.logDecision(ctx.taskId, 'collections_reminder', {

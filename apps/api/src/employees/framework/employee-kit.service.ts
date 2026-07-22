@@ -12,6 +12,7 @@ import { DispatchService } from '../../operations/dispatch/dispatch.service';
 import { DocumentsService } from '../../revenue/documents.service';
 import { PaymentsService } from '../../revenue/payments.service';
 import { ToolRegistry } from './tool-registry.service';
+import { ToolGateway } from './tool-gateway.service';
 import { AiUsageService } from './ai-usage.service';
 
 /**
@@ -37,6 +38,7 @@ export class EmployeeKit {
     public readonly documents: DocumentsService,
     public readonly payments: PaymentsService,
     public readonly tools: ToolRegistry,
+    public readonly gateway: ToolGateway,
     public readonly usage: AiUsageService,
   ) {}
 

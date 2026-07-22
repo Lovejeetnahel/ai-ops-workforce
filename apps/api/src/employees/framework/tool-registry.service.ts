@@ -8,6 +8,7 @@ import { DispatchService } from '../../operations/dispatch/dispatch.service';
 import { DocumentsService } from '../../revenue/documents.service';
 import { PaymentsService } from '../../revenue/payments.service';
 import { tenantContext } from '../../common/tenancy/tenant-context';
+import { AiUsageService } from './ai-usage.service';
 
 type ToolFn = (args: any) => Promise<any>;
 
@@ -31,6 +32,7 @@ export class ToolRegistry {
     dispatch: DispatchService,
     documents: DocumentsService,
     payments: PaymentsService,
+    usage: AiUsageService,
   ) {
     const tid = () => tenantContext.tenantId;
     this.tools = {
@@ -46,7 +48,12 @@ export class ToolRegistry {
       recall_memory: (a) => brain.recall(a.subjectType, a.subjectId),
       remember: (a) => brain.remember(a),
       ingest_knowledge: (a) => brain.ingest(a),
-      llm: async (a) => ({ text: (await providers.llm().complete({ system: a.system, messages: [{ role: 'user', content: a.user }], maxTokens: a.maxTokens ?? 400 })).text }),
+      llm: async (a) => {
+        const llm = providers.llm();
+        const res = await llm.complete({ system: a.system, messages: [{ role: 'user', content: a.user }], maxTokens: a.maxTokens ?? 400 });
+        if (res.usage) await usage.record({ provider: llm.provider, model: llm.model, inputTokens: res.usage.inputTokens, outputTokens: res.usage.outputTokens, agentKey: a._agentKey, taskId: a._taskId });
+        return { text: res.text };
+      },
       vision: (a) => providers.vision().analyze({ url: a.url, hint: a.hint }),
     };
     void prisma; // reserved for future direct-data tools
@@ -60,7 +67,15 @@ export class ToolRegistry {
     return Object.keys(this.tools);
   }
 
-  run(name: string, args: Record<string, unknown>): Promise<any> {
+  /**
+   * Raw execution. INTERNAL ONLY — no permission, risk or approval checks
+   * happen here. Every agent/controller-facing path must go through
+   * ToolGateway.execute(), which is the single enforced entry point. Marked
+   * with an underscore + doc rather than `private` only because ToolGateway
+   * (a sibling class) needs it; nothing else may call it.
+   * @internal
+   */
+  _rawRun(name: string, args: Record<string, unknown>): Promise<any> {
     const tool = this.tools[name];
     if (!tool) return Promise.reject(new Error(`Unknown tool: ${name}`));
     return tool(args);

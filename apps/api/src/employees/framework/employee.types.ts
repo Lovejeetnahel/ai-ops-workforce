@@ -43,4 +43,6 @@ export interface ExecuteContext {
   taskId: string;
   /** True when authority === AUTONOMOUS (side effects allowed). */
   autonomous: boolean;
+  /** The full authority in force for this run (drives the ToolGateway's risk verdict). */
+  authority: Authority;
 }

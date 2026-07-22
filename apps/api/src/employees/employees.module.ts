@@ -4,6 +4,8 @@ import { OperationsModule } from '../operations/operations.module';
 import { RevenueModule } from '../revenue/revenue.module';
 import { EmployeeKit } from './framework/employee-kit.service';
 import { ToolRegistry } from './framework/tool-registry.service';
+import { ToolGateway } from './framework/tool-gateway.service';
+import { AiUsageService } from './framework/ai-usage.service';
 import { EmployeeRegistry } from './framework/employee-registry.service';
 import { AgentOrchestrator } from './framework/agent-orchestrator.service';
 import { EmployeeMetricsService } from './framework/employee-metrics.service';
@@ -30,6 +32,8 @@ import { ExecutiveEmployee } from './roster/executive.employee';
   providers: [
     EmployeeKit,
     ToolRegistry,
+    ToolGateway,
+    AiUsageService,
     EmployeeRegistry,
     AgentOrchestrator,
     EmployeeMetricsService,

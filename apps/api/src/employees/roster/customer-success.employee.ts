@@ -40,7 +40,7 @@ export class CustomerSuccessEmployee extends BaseEmployeeAgent {
     if (!contactId) return { ok: false, summary: 'no contact' };
     const contact = await this.kit.prisma.db.contact.findUnique({ where: { id: contactId } });
     const message = `Hi ${contact?.name ?? 'there'}, thanks for choosing us! How was your experience? Reply 1-5 (5 = excellent).`;
-    if (ctx.autonomous && contact?.phone) await this.kit.tools.run('sms', { to: contact.phone, body: message });
+    if (ctx.autonomous && contact?.phone) await this.useTool(ctx, 'sms', { to: contact.phone, body: message }, { reason: 'Post-service CSAT outreach' });
     await this.activity({ type: 'SMS', title: 'Customer Success AI satisfaction check', body: message, contactId, jobId: ctx.input.subjects?.jobId });
     await this.logDecision(ctx.taskId, 'satisfaction_check', { reason: 'Post-service CSAT outreach', expectedSignal: 'message.inbound', deadlineHours: 72, subjects: { contactId } });
     return { ok: true, summary: 'Satisfaction check sent' };

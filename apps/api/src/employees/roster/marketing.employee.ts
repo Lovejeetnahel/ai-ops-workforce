@@ -49,7 +49,7 @@ export class MarketingEmployee extends BaseEmployeeAgent {
     if (!contactId) return { ok: false, summary: 'no contact' };
     const contact = await this.kit.prisma.db.contact.findUnique({ where: { id: contactId } });
     const message = `Hi ${contact?.name ?? 'there'}, we'd love a quick review of your recent service — it really helps! Thank you.`;
-    if (ctx.autonomous && contact?.phone) await this.kit.tools.run('sms', { to: contact.phone, body: message });
+    if (ctx.autonomous && contact?.phone) await this.useTool(ctx, 'sms', { to: contact.phone, body: message }, { reason: 'Post-job review request' });
     await this.activity({ type: 'SMS', title: 'Marketing AI requested a review', body: message, contactId, jobId: ctx.input.subjects?.jobId });
     await this.logDecision(ctx.taskId, 'review_request', { reason: 'Post-job review solicitation', expectedSignal: 'message.inbound', deadlineHours: 120, subjects: { contactId } });
     return { ok: true, summary: 'Review requested' };
