@@ -14,6 +14,7 @@ import { OperationsManagerEmployee } from '../roster/operations-manager.employee
 import { MarketingEmployee } from '../roster/marketing.employee';
 import { ReceptionistEmployee } from '../roster/receptionist.employee';
 import { ExecutiveEmployee } from '../roster/executive.employee';
+import { CommandCenterEmployee } from '../roster/command-center.employee';
 
 export interface Installation {
   enabled: boolean;
@@ -41,8 +42,9 @@ export class EmployeeRegistry {
     marketing: MarketingEmployee,
     receptionist: ReceptionistEmployee,
     executive: ExecutiveEmployee,
+    commandCenter: CommandCenterEmployee,
   ) {
-    [sales, cs, collections, recruiting, ops, marketing, receptionist, executive].forEach((a) => this.roster.set(a.definition.key, a));
+    [sales, cs, collections, recruiting, ops, marketing, receptionist, executive, commandCenter].forEach((a) => this.roster.set(a.definition.key, a));
   }
 
   get(key: string): BaseEmployeeAgent | undefined {

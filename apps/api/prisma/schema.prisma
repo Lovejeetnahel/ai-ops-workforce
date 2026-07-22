@@ -206,6 +206,8 @@ model Tenant {
   portalUsers     CustomerPortalUser[]
   notifications   Notification[]
   bookingRequests BookingRequest[]
+  agentApprovals  AgentApproval[]
+  aiUsageEvents   AiUsageEvent[]
 
   @@index([industryModule])
 }
@@ -1254,11 +1256,17 @@ model AgentInstallation {
   config      Json           @default("{}")
   permissions String[]       @default([])
   version     String         @default("1.0.0")
+  // Scheduler claim columns (Phase 3). nextRunAt is the compare-and-swap
+  // claim target: a sweep only wins the run if its updateMany({ nextRunAt:
+  // { lte: now } }) matched — same proven pattern as WorkflowEngine.resumeDue.
+  nextRunAt   DateTime?
+  lastRunAt   DateTime?
   installedAt DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
   @@unique([tenantId, agentKey])
   @@index([tenantId, enabled])
+  @@index([nextRunAt])
 }
 
 /// A unit of AI-employee work: observation → plan → execution. Holds working
@@ -1279,6 +1287,13 @@ model AgentTask {
   reason        String?
   confidence    Float?
   error         String?
+  // LLM usage rollup (Phase 3 AI Workforce). Tokens are the immutable facts;
+  // costMicros (millionths of a currency unit) is an ESTIMATE derived from
+  // configurable pricing at write time — never from hardcoded rates. Null =
+  // no LLM call / pricing not configured. Per-call detail is in AiUsageEvent.
+  tokensIn      Int?
+  tokensOut     Int?
+  costMicros    BigInt?
   startedAt     DateTime        @default(now())
   endedAt       DateTime?
   createdAt     DateTime        @default(now())
@@ -1286,6 +1301,68 @@ model AgentTask {
   @@index([tenantId, agentKey, status])
   @@index([tenantId, createdAt])
   @@index([tenantId, parentTaskId])
+}
+
+// ═══════════════════ AI Workforce Phase 3: approvals + usage ═══════════════
+
+enum AgentApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+  EXECUTED
+  FAILED
+}
+
+/// A durable, executable pending action awaiting human approval. Holds the
+/// FULLY VALIDATED tool arguments captured at request time — approval never
+/// re-derives arguments from natural language. Survives restarts; execution
+/// is claimed via a compare-and-swap status transition so an approved action
+/// runs exactly once even across concurrent approvers/instances.
+model AgentApproval {
+  id              String              @id @default(cuid())
+  tenantId        String
+  tenant          Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  agentKey        String
+  taskId          String?             // AgentTask that requested it (scalar ref, like AgentTask's own refs)
+  toolName        String
+  toolArgs        Json                @default("{}") // schema-validated at creation
+  reason          String?
+  confidence      Float?
+  authority       AgentAuthority      // authority level in force when requested
+  status          AgentApprovalStatus @default(PENDING)
+  expiresAt       DateTime
+  approvedById    String?             // User.id of the human who resolved it
+  approvedAt      DateTime?
+  executedAt      DateTime?
+  executionResult Json?
+  idempotencyKey  String              @unique // tenant+task+tool+args hash — one approval per intended action
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([tenantId, status, expiresAt])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, agentKey])
+}
+
+/// One row per LLM call: which provider/model, how many tokens, for which
+/// employee/task. Tokens are facts; costMicros is an estimate (configurable
+/// pricing) and models are never merged into one undifferentiated number.
+model AiUsageEvent {
+  id         String   @id @default(cuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  provider   String   // e.g. "anthropic"
+  model      String   // exact model id used for the call
+  tokensIn   Int
+  tokensOut  Int
+  costMicros BigInt?  // null when pricing is not configured
+  agentKey   String?
+  taskId     String?
+  createdAt  DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, agentKey, createdAt])
 }
 
 // ════════════════ Enterprise Intelligence & Platform (Phase 7) ═════════════

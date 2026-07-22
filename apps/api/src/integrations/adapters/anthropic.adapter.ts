@@ -9,9 +9,14 @@ import { LlmPort } from '../ports';
  */
 export class AnthropicAdapter implements LlmPort {
   private readonly logger = new Logger(AnthropicAdapter.name);
-  private readonly model = process.env.LLM_MODEL ?? 'claude-opus-4-8';
+  readonly model = process.env.LLM_MODEL ?? 'claude-opus-4-8';
 
   constructor(private readonly apiKey?: string) {}
+
+  /** "anthropic" when keyed; "stub" so usage rows never misattribute offline echoes. */
+  get provider(): string {
+    return this.apiKey ? 'anthropic' : 'stub';
+  }
 
   async complete(input: {
     system: string;
@@ -47,6 +52,12 @@ export class AnthropicAdapter implements LlmPort {
     const toolCalls = data.content
       ?.filter((b: any) => b.type === 'tool_use')
       .map((b: any) => ({ name: b.name, input: b.input }));
-    return { text, toolCalls };
+    // The Messages API returns exact token counts on every response — surface
+    // them instead of discarding, so usage/cost tracking works on facts.
+    const usage =
+      typeof data.usage?.input_tokens === 'number' && typeof data.usage?.output_tokens === 'number'
+        ? { inputTokens: data.usage.input_tokens, outputTokens: data.usage.output_tokens }
+        : undefined;
+    return { text, toolCalls, usage };
   }
 }

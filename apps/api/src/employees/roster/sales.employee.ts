@@ -88,7 +88,7 @@ export class SalesEmployee extends BaseEmployeeAgent {
     const contactId = ctx.input.subjects?.contactId;
     const contact = contactId ? await this.kit.prisma.db.contact.findUnique({ where: { id: contactId } }) : null;
     const message = (p.message as string) ?? (await this.think('You are a concise, friendly sales rep writing a follow-up SMS under 300 chars.', `Write a follow-up to ${contact?.name ?? 'the customer'} about their inquiry.`, contactId));
-    if (ctx.autonomous && contact?.phone) await this.kit.tools.run('sms', { to: contact.phone, body: message });
+    if (ctx.autonomous && contact?.phone) await this.useTool(ctx, 'sms', { to: contact.phone, body: message }, { reason: 'Lead follow-up' });
     await this.activity({ type: 'SMS', title: 'Sales AI follow-up', body: message, contactId });
     return { ok: true, summary: 'Follow-up sent', output: { message } };
   }

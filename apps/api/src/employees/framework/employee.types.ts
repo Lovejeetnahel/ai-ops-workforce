@@ -20,6 +20,8 @@ export interface EmployeeResult {
   /** Business value generated (booked to the Value Ledger in reflect()). */
   value?: number;
   emitted?: string[];
+  /** 0-1 self-assessed confidence; persisted on the AgentTask by the orchestrator. */
+  confidence?: number;
 }
 
 /** Static descriptor of an AI employee (the "job description"). */
@@ -43,4 +45,6 @@ export interface ExecuteContext {
   taskId: string;
   /** True when authority === AUTONOMOUS (side effects allowed). */
   autonomous: boolean;
+  /** The full authority in force for this run (drives the ToolGateway's risk verdict). */
+  authority: Authority;
 }
