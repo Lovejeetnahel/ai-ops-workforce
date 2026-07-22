@@ -226,7 +226,7 @@ export default function AiWorkforcePage() {
                   <div className="meta">{e.department} · authority: {(e.installation?.authority ?? e.defaultAuthority).toLowerCase()}</div>
                   <div className="meta" style={{ margin: '6px 0' }}>{e.description}</div>
                   {stat && (stat.tasksCompleted ?? 0) + (stat.tasksFailed ?? 0) > 0 ? (
-                    <div className="meta">Success rate: {Math.round((stat.successRate ?? 0) * 100)}% · {stat.tasksCompleted ?? 0} done{(stat.tasksFailed ?? 0) > 0 ? ` · ${stat.tasksFailed} failed` : ''}</div>
+                    <div className="meta">Success rate: {Math.round(stat.successRate ?? 0)}% · {stat.tasksCompleted ?? 0} done{(stat.tasksFailed ?? 0) > 0 ? ` · ${stat.tasksFailed} failed` : ''}</div>
                   ) : (
                     <div className="meta">No completed tasks yet — no stats to show.</div>
                   )}
