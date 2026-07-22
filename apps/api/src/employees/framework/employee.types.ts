@@ -20,6 +20,8 @@ export interface EmployeeResult {
   /** Business value generated (booked to the Value Ledger in reflect()). */
   value?: number;
   emitted?: string[];
+  /** 0-1 self-assessed confidence; persisted on the AgentTask by the orchestrator. */
+  confidence?: number;
 }
 
 /** Static descriptor of an AI employee (the "job description"). */

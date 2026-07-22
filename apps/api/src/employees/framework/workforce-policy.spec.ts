@@ -2,6 +2,7 @@ import { parseEmployeeConfig, parseSchedule, validateEmployeeConfigInput, CONFIG
 import { riskOf, verdictFor } from './action-risk.policy';
 import { validateToolArgs, actionIdempotencyKey } from './tool-gateway.service';
 import { estimateCostMicros, parsePricingEnv } from './ai-usage.service';
+import { computeNextRun } from './employee-scheduler.service';
 
 describe('employee config validation', () => {
   it('drops invalid fields and caps lengths on read', () => {
@@ -66,6 +67,35 @@ describe('tool argument validation', () => {
     const c = actionIdempotencyKey('t1', 'sales', 'sms', { to: '+1', body: 'different' }, 'task1');
     expect(a).toBe(b);
     expect(a).not.toBe(c);
+  });
+});
+
+describe('scheduler next-run computation (tenant timezone)', () => {
+  it('computes the next daily occurrence in the tenant timezone', () => {
+    // 2026-07-22 12:00:00 UTC = 08:00 in New York (EDT). Next 9am NY = 13:00 UTC same day.
+    const from = new Date('2026-07-22T12:00:00Z');
+    const next = computeNextRun({ frequency: 'daily', hour: 9, taskType: 'daily_digest' }, 'America/New_York', from);
+    expect(next.toISOString()).toBe('2026-07-22T13:00:00.000Z');
+  });
+
+  it('rolls to the next day when the hour already passed locally', () => {
+    // 20:00 UTC = 16:00 NY; 9am NY already passed → tomorrow 13:00 UTC.
+    const from = new Date('2026-07-22T20:00:00Z');
+    const next = computeNextRun({ frequency: 'daily', hour: 9, taskType: 'daily_digest' }, 'America/New_York', from);
+    expect(next.toISOString()).toBe('2026-07-23T13:00:00.000Z');
+  });
+
+  it('honors weekly dayOfWeek', () => {
+    // 2026-07-22 is a Wednesday. Next Monday (1) 08:00 NY = 2026-07-27 12:00 UTC.
+    const from = new Date('2026-07-22T12:00:00Z');
+    const next = computeNextRun({ frequency: 'weekly', hour: 8, dayOfWeek: 1, taskType: 'weekly_report' }, 'America/New_York', from);
+    expect(next.toISOString()).toBe('2026-07-27T12:00:00.000Z');
+  });
+
+  it('always returns a strictly future time', () => {
+    const from = new Date('2026-01-05T09:00:00Z');
+    const next = computeNextRun({ frequency: 'daily', hour: 9, taskType: 'x' }, 'UTC', from);
+    expect(next.getTime()).toBeGreaterThan(from.getTime());
   });
 });
 

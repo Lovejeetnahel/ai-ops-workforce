@@ -47,7 +47,13 @@ export class AgentOrchestrator {
       const result = await agent.handle(input, task.id, install.authority);
       await this.prisma.db.agentTask.update({
         where: { id: task.id },
-        data: { status: 'DONE', output: (result.output ?? { summary: result.summary }) as any, reason: result.summary, endedAt: new Date() },
+        data: {
+          status: 'DONE',
+          output: (result.output ?? { summary: result.summary }) as any,
+          reason: result.summary,
+          confidence: typeof result.confidence === 'number' ? Math.max(0, Math.min(1, result.confidence)) : undefined,
+          endedAt: new Date(),
+        },
       });
       await this.bus.emit({ name: DomainEvents.AGENT_TASK_COMPLETED, tenantId: tenantContext.tenantId, payload: { task: { id: task.id, agentKey }, value: result.value ?? 0 } });
       return { ...result, taskId: task.id };

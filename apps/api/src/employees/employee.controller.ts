@@ -128,7 +128,13 @@ export class EmployeeController {
       ...(dto.schedule !== undefined ? { schedule: dto.schedule } : {}),
       version: 1,
     };
-    return this.registry.install(key, { config: merged, permissions: dto.permissions });
+    const result = await this.registry.install(key, { config: merged, permissions: dto.permissions });
+    if (dto.schedule !== undefined) {
+      // Schedule changed: clear the claim column so the scheduler's arm pass
+      // recomputes nextRunAt from the new schedule (or leaves it disarmed).
+      await this.prisma.db.agentInstallation.updateMany({ where: { agentKey: key }, data: { nextRunAt: null } });
+    }
+    return result;
   }
 
   @Get()

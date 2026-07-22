@@ -12,6 +12,7 @@ import { EmployeeRegistry } from './framework/employee-registry.service';
 import { AgentOrchestrator } from './framework/agent-orchestrator.service';
 import { EmployeeMetricsService } from './framework/employee-metrics.service';
 import { EmployeeEventRouter } from './framework/employee-event-router.service';
+import { EmployeeSchedulerService } from './framework/employee-scheduler.service';
 import { EmployeeController } from './employee.controller';
 import { SalesEmployee } from './roster/sales.employee';
 import { CustomerSuccessEmployee } from './roster/customer-success.employee';
@@ -43,6 +44,7 @@ import { CommandCenterEmployee } from './roster/command-center.employee';
     AgentOrchestrator,
     EmployeeMetricsService,
     EmployeeEventRouter,
+    EmployeeSchedulerService,
     SalesEmployee,
     CustomerSuccessEmployee,
     CollectionsEmployee,
