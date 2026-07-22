@@ -54,13 +54,22 @@ export interface PaymentPort {
 }
 
 export interface LlmPort {
+  /** Provider identifier for usage auditing (e.g. "anthropic"; "stub" offline). */
+  readonly provider: string;
+  /** Exact model id calls are made with (usage rows must never merge models). */
+  readonly model: string;
   /** Single-shot completion with optional tool definitions for agent reasoning. */
   complete(input: {
     system: string;
     messages: { role: 'user' | 'assistant'; content: string }[];
     tools?: { name: string; description: string; input_schema: object }[];
     maxTokens?: number;
-  }): Promise<{ text: string; toolCalls?: { name: string; input: Record<string, unknown> }[] }>;
+  }): Promise<{
+    text: string;
+    toolCalls?: { name: string; input: Record<string, unknown> }[];
+    /** Real token counts from the provider response; absent in stub mode. */
+    usage?: { inputTokens: number; outputTokens: number };
+  }>;
 }
 
 /**

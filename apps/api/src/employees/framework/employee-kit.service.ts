@@ -12,6 +12,7 @@ import { DispatchService } from '../../operations/dispatch/dispatch.service';
 import { DocumentsService } from '../../revenue/documents.service';
 import { PaymentsService } from '../../revenue/payments.service';
 import { ToolRegistry } from './tool-registry.service';
+import { AiUsageService } from './ai-usage.service';
 
 /**
  * A single injectable that bundles every shared dependency an AI employee needs,
@@ -36,10 +37,45 @@ export class EmployeeKit {
     public readonly documents: DocumentsService,
     public readonly payments: PaymentsService,
     public readonly tools: ToolRegistry,
+    public readonly usage: AiUsageService,
   ) {}
 
-  async complete(system: string, user: string, maxTokens = 400): Promise<string> {
-    const res = await this.providers.llm().complete({ system, messages: [{ role: 'user', content: user }], maxTokens });
+  async complete(system: string, user: string, maxTokens = 400, attribution?: { agentKey?: string; taskId?: string }): Promise<string> {
+    const res = await this.llmCall({ system, messages: [{ role: 'user', content: user }], maxTokens }, attribution);
     return res.text;
+  }
+
+  /**
+   * The one LLM entry point for the workforce: every call is usage-accounted
+   * (exact provider + model + token facts per call, rolled up to the owning
+   * AgentTask) and feeds the honest provider-readiness state. Supports the
+   * tools/toolCalls contract for the planner loop.
+   */
+  async llmCall(
+    input: { system: string; messages: { role: 'user' | 'assistant'; content: string }[]; tools?: { name: string; description: string; input_schema: object }[]; maxTokens?: number },
+    attribution?: { agentKey?: string; taskId?: string },
+  ) {
+    const llm = this.providers.llm();
+    try {
+      const res = await llm.complete(input);
+      this.usage.noteProviderSuccess();
+      if (res.usage) {
+        const recorded = await this.usage.record({
+          provider: llm.provider,
+          model: llm.model,
+          inputTokens: res.usage.inputTokens,
+          outputTokens: res.usage.outputTokens,
+          agentKey: attribution?.agentKey,
+          taskId: attribution?.taskId,
+        });
+        if (attribution?.taskId) await this.usage.addToTask(attribution.taskId, recorded);
+      }
+      return res;
+    } catch (err) {
+      // Classify without leaking provider response bodies.
+      const msg = (err as Error).message ?? '';
+      this.usage.noteProviderError(msg.includes('429') ? 'rate_limited' : msg.includes('Anthropic 5') ? 'temporarily_unavailable' : 'request_failed');
+      throw err;
+    }
   }
 }
