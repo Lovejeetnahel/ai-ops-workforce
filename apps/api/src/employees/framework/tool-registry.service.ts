@@ -55,8 +55,36 @@ export class ToolRegistry {
         return { text: res.text };
       },
       vision: (a) => providers.vision().analyze({ url: a.url, hint: a.hint }),
+      // ── SAFE read tools (Phase 3): real data for planner/Command Center ──
+      business_snapshot: async () => {
+        const [leadsByStage, overdueInvoices, bookingsToday, openConversations] = await Promise.all([
+          prisma.db.lead.groupBy({ by: ['stage'], _count: { _all: true } } as any),
+          prisma.db.document.count({ where: { type: 'INVOICE', status: 'SENT', createdAt: { lt: new Date(Date.now() - 7 * 86_400_000) } } }),
+          prisma.db.booking.count({ where: { start: { gte: new Date(new Date().setHours(0, 0, 0, 0)), lt: new Date(new Date().setHours(24, 0, 0, 0)) } } }),
+          prisma.db.conversation.count({ where: { status: 'OPEN' } }),
+        ]);
+        return { leadsByStage: (leadsByStage as any[]).map((g) => ({ stage: g.stage, count: g._count._all })), overdueInvoices, bookingsToday, openConversations };
+      },
+      list_leads: async (a) => {
+        const leads = await prisma.db.lead.findMany({
+          where: a.stage ? { stage: a.stage } : undefined,
+          include: { contact: { select: { name: true, phone: true, email: true } } },
+          orderBy: { updatedAt: 'desc' },
+          take: Math.min(Number(a.take ?? 20), 50),
+        });
+        return leads.map((l) => ({ id: l.id, stage: l.stage, contact: l.contact?.name ?? null, phone: l.contact?.phone ?? null, email: l.contact?.email ?? null, updatedAt: l.updatedAt }));
+      },
+      list_overdue_invoices: async (a) => {
+        const days = Math.min(Number(a.olderThanDays ?? 7), 365);
+        const invoices = await prisma.db.document.findMany({
+          where: { type: 'INVOICE', status: 'SENT', createdAt: { lt: new Date(Date.now() - days * 86_400_000) } },
+          orderBy: { createdAt: 'asc' },
+          take: 50,
+          select: { id: true, title: true, amount: true, contactId: true, createdAt: true },
+        });
+        return invoices.map((i) => ({ ...i, daysOutstanding: Math.floor((Date.now() - new Date(i.createdAt).getTime()) / 86_400_000) }));
+      },
     };
-    void prisma; // reserved for future direct-data tools
   }
 
   has(name: string): boolean {

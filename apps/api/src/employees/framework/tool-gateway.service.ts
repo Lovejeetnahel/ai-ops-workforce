@@ -46,6 +46,9 @@ const TOOL_ARG_SCHEMAS: Record<string, { required: string[]; optional?: string[]
   ingest_knowledge: { required: ['type', 'title', 'content'], optional: ['source', 'visibility', 'metadata'] },
   llm: { required: ['system', 'user'], optional: ['maxTokens', '_agentKey', '_taskId'] },
   vision: { required: ['url'], optional: ['hint'] },
+  business_snapshot: { required: [] },
+  list_leads: { required: [], optional: ['stage', 'take'] },
+  list_overdue_invoices: { required: [], optional: ['olderThanDays'] },
 };
 
 export interface GatewayResult {
