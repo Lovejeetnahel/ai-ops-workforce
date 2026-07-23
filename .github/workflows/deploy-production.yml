@@ -66,7 +66,11 @@ jobs:
           cd /opt/aiow
           STAMP=$(date +%Y%m%d-%H%M%S)
 
-          psql_t() { docker compose exec -T postgres sh -lc "psql -U \"\${POSTGRES_USER:-aiow}\" -d \"\${POSTGRES_DB:-aiow}\" -tAc \"$1\""; }
+          # SQL travels via STDIN (-f -): nesting it inside the sh -lc string
+          # let the container shell strip inner double quotes, which lowercased
+          # CamelCase identifiers ("AgentApproval" → agentapproval) and made
+          # every table check fail falsely on deploy run #1.
+          psql_t() { printf '%s' "$1" | docker compose exec -T postgres sh -lc 'psql -U "${POSTGRES_USER:-aiow}" -d "${POSTGRES_DB:-aiow}" -tA -f -'; }
 
           verify_all() {
             local ok=0
