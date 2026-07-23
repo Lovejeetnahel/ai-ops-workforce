@@ -134,7 +134,10 @@ export class GoalsService {
   private async assertValidParent(parentGoalId: string | null, selfId: string | null) {
     if (!parentGoalId) return;
     if (selfId && parentGoalId === selfId) throw new BadRequestException('A goal cannot be its own parent.');
-    const parent = await this.prisma.db.goal.findUnique({ where: { id: parentGoalId }, select: { id: true, parentGoalId: true } });
+    // tenantId must be in the select: the fail-closed tenant extension
+    // verifies it on the RESULT of unique reads — omit it and every row
+    // (including your own) reads back as null.
+    const parent = await this.prisma.db.goal.findUnique({ where: { id: parentGoalId }, select: { id: true, parentGoalId: true, tenantId: true } });
     if (!parent) throw new BadRequestException('parentGoalId does not reference a goal in this business.');
     if (selfId && parent.parentGoalId === selfId) throw new BadRequestException('Goal hierarchy cannot form a cycle.');
   }

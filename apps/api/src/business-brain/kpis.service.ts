@@ -156,7 +156,9 @@ export class KpisService {
   }
 
   private async assertGoal(goalId: string) {
-    const goal = await this.prisma.db.goal.findUnique({ where: { id: goalId }, select: { id: true } });
+    // tenantId in the select is required for the tenancy extension's
+    // unique-read verification (see goals.service.assertValidParent).
+    const goal = await this.prisma.db.goal.findUnique({ where: { id: goalId }, select: { id: true, tenantId: true } });
     if (!goal) throw new BadRequestException('goalId does not reference a goal in this business.');
   }
 }
