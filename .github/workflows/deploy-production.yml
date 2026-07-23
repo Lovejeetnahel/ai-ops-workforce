@@ -15,9 +15,13 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'deploy | smoke | rollback | cleanup-test-tenants'
+        description: 'deploy | smoke | rollback | cleanup-test-tenants | logs'
         required: true
         default: 'deploy'
+      search:
+        description: 'logs: grep pattern (e.g. a correlation id)'
+        required: false
+        default: ''
       expected_commit:
         description: 'deploy: full SHA that must be contained in main'
         required: false
@@ -65,6 +69,7 @@ jobs:
           MODE: ${{ inputs.mode }}
           EXPECTED_COMMIT: ${{ inputs.expected_commit }}
           ROLLBACK_TO: ${{ inputs.rollback_to }}
+          SEARCH: ${{ inputs.search }}
         run: |
           cat > remote.sh <<'REMOTE'
           set -euo pipefail
@@ -152,11 +157,20 @@ jobs:
               LEFT=$(psql_t "SELECT count(*) FROM \"Tenant\" WHERE name LIKE 'ZZ RELEASE VERIFY%';")
               echo "SMOKE_CLEANUP_DONE remaining=${LEFT}"
               ;;
+            logs)
+              # Read-only diagnostics: pull API log lines around a pattern
+              # (e.g. a correlation id). Secrets never appear in app logs.
+              if [ -n "$SEARCH" ]; then
+                docker compose logs --tail 2000 api | grep -B 3 -A 40 -- "$SEARCH" || echo "pattern not found in last 2000 lines"
+              else
+                docker compose logs --tail 80 api
+              fi
+              ;;
             *) echo "unknown mode: $MODE"; exit 1 ;;
           esac
           REMOTE
           # Prepend run-specific variables (values are workflow inputs, not secrets).
-          sed -i "1i MODE='${MODE}'; EXPECTED_COMMIT='${EXPECTED_COMMIT}'; ROLLBACK_TO='${ROLLBACK_TO}'" remote.sh
+          sed -i "1i MODE='${MODE}'; EXPECTED_COMMIT='${EXPECTED_COMMIT}'; ROLLBACK_TO='${ROLLBACK_TO}'; SEARCH='${SEARCH}'" remote.sh
 
       - name: Authenticated production smoke tests (mode=smoke)
         id: smoke
