@@ -15,7 +15,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'deploy | rollback | cleanup-test-tenants'
+        description: 'deploy | smoke | rollback | cleanup-test-tenants'
         required: true
         default: 'deploy'
       expected_commit:
@@ -140,13 +140,32 @@ jobs:
               echo "CLEANUP_DONE"
               psql_t "SELECT count(*) FROM \"Tenant\" WHERE name LIKE 'ZZ RELEASE VERIFY%';"
               ;;
+            smoke)
+              # Runs AFTER the runner-side authenticated smoke step: remove
+              # the 'ZZ RELEASE VERIFY%' tenants it created (cascade delete).
+              psql_t "DELETE FROM \"Tenant\" WHERE name LIKE 'ZZ RELEASE VERIFY%';" || true
+              LEFT=$(psql_t "SELECT count(*) FROM \"Tenant\" WHERE name LIKE 'ZZ RELEASE VERIFY%';")
+              echo "SMOKE_CLEANUP_DONE remaining=${LEFT}"
+              ;;
             *) echo "unknown mode: $MODE"; exit 1 ;;
           esac
           REMOTE
           # Prepend run-specific variables (values are workflow inputs, not secrets).
           sed -i "1i MODE='${MODE}'; EXPECTED_COMMIT='${EXPECTED_COMMIT}'; ROLLBACK_TO='${ROLLBACK_TO}'" remote.sh
 
+      - name: Checkout (smoke script)
+        if: ${{ inputs.mode == 'smoke' }}
+        uses: actions/checkout@v4
+
+      - name: Authenticated production smoke tests (mode=smoke)
+        id: smoke
+        if: ${{ inputs.mode == 'smoke' }}
+        run: node .github/smoke/r4-prod-smoke.mjs
+
       - name: Run on production
+        # For mode=smoke this is the tenant cleanup — it must run even when
+        # the smoke step failed, so verification tenants never linger.
+        if: ${{ success() || (inputs.mode == 'smoke' && !cancelled()) }}
         env:
           HOST: ${{ secrets.PROD_SSH_HOST }}
           USER: ${{ secrets.PROD_SSH_USER }}
