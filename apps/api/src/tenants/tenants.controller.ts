@@ -33,6 +33,10 @@ class CreateStaffDto {
   @IsOptional() @IsArray() serviceZones?: string[];
 }
 
+class UpdateProfileDto {
+  @IsString() @MinLength(1) timezone: string;
+}
+
 class UpdateOnboardingDto {
   @IsOptional() @IsArray() completedSteps?: string[];
   @IsOptional() @IsBoolean() skipped?: boolean;
@@ -80,6 +84,14 @@ export class TenantsController {
   @Roles('OWNER')
   createStaff(@Body() dto: CreateStaffDto) {
     return this.tenants.createStaffUser(dto);
+  }
+
+  /** Business profile updates (currently: timezone, IANA-validated). */
+  @Patch('profile')
+  @UseGuards(RolesGuard)
+  @Roles('OWNER')
+  updateProfile(@Body() dto: UpdateProfileDto) {
+    return this.tenants.updateTimezone(dto.timezone);
   }
 
   /** First-time onboarding progress — stored additively in Tenant.settings. */

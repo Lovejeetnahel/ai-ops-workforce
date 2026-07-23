@@ -6,6 +6,7 @@ import helmet from 'helmet';
 import * as express from 'express';
 import { AppModule } from './app.module';
 import { PrismaExceptionFilter } from './common/prisma/prisma-exception.filter';
+import { AllExceptionsFilter } from './common/all-exceptions.filter';
 
 /**
  * API entrypoint. Handles synchronous HTTP + inbound provider webhooks and is
@@ -55,7 +56,11 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }),
   );
-  app.useGlobalFilters(new PrismaExceptionFilter());
+  // Registration order matters: Nest checks filters in REVERSE order, so the
+  // Prisma filter (registered last) keeps precedence for Prisma errors, while
+  // AllExceptionsFilter catches everything else — passing HttpExceptions
+  // through unchanged and stamping unexpected 500s with a correlationId.
+  app.useGlobalFilters(new AllExceptionsFilter(), new PrismaExceptionFilter());
   app.enableShutdownHooks(); // lets Prisma + BullMQ drain on SIGTERM
 
   const port = Number(process.env.API_PORT ?? 4000);

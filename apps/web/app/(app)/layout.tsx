@@ -1,7 +1,8 @@
 'use client';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { isAuthed } from '../../lib/api';
 import { SidebarNav } from '../../components/Sidebar';
 import { SofilicMark } from '../../components/Logo';
 import { AccountSwitcher } from '../../components/AccountSwitcher';
@@ -31,10 +32,26 @@ const PAGE_TITLES: Record<string, string> = {
  * notifications, profile), mobile drawer. Used by all 13 approved modules. */
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const path = usePathname();
+  const router = useRouter();
   const [drawer, setDrawer] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [userName, setUserName] = useState<string | null>(null);
+  // null = auth not yet checked (render nothing — never expose the app shell
+  // to logged-out visitors), true = render, redirect fired otherwise.
+  const [authed, setAuthed] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!isAuthed()) {
+      // `next` is only ever the CURRENT pathname (always an internal,
+      // single-slash route), so this cannot become an open redirect; /login
+      // itself lives outside this layout, so no redirect loop is possible.
+      const next = path && path.startsWith('/') && !path.startsWith('//') ? path : '/dashboard';
+      router.replace(`/login?next=${encodeURIComponent(next)}`);
+      return;
+    }
+    setAuthed(true);
+  }, [path, router]);
 
   useEffect(() => {
     try {
@@ -66,6 +83,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   };
 
   const title = PAGE_TITLES[path] ?? 'Sofilic';
+
+  // Auth unresolved or redirecting: render nothing rather than an app shell.
+  if (authed !== true) return null;
 
   return (
     <>

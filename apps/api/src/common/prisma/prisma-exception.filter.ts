@@ -1,5 +1,6 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpStatus, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { randomBytes } from 'node:crypto';
 import { Response } from 'express';
 
 /**
@@ -25,9 +26,10 @@ export class PrismaExceptionFilter implements ExceptionFilter {
       return;
     }
     // Any other Prisma error reaching here is unexpected — log it server-side
-    // (never in the response body) so a real defect doesn't disappear as a
-    // silent, unexplained 500.
-    this.logger.error(exception.message, exception.stack);
-    response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ statusCode: 500, message: 'Internal server error' });
+    // (never in the response body) under a correlationId users can quote to
+    // support, so a real defect doesn't disappear as a silent, unexplained 500.
+    const correlationId = `err_${randomBytes(6).toString('hex')}`;
+    this.logger.error(`[${correlationId}] ${exception.message}`, exception.stack);
+    response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ statusCode: 500, message: 'Internal server error', correlationId });
   }
 }
