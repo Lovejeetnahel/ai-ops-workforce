@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { listPresets } from '@aiow/config';
+import { AI_WORKFORCE_FACTS } from '../../lib/product-status';
 import { StatusBadge } from '../../components/StatusBadge';
 
 export const metadata: Metadata = {
@@ -125,7 +126,7 @@ export default function Landing() {
       <section className="mk-section" style={{ paddingTop: 20 }}>
         <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
           <div className="stat-block"><div className="kpi">{industryCount}</div><div className="muted">industries ready at signup</div></div>
-          <div className="stat-block"><div className="kpi">8</div><div className="muted">AI employee roles you can configure</div></div>
+          <div className="stat-block"><div className="kpi">{AI_WORKFORCE_FACTS.employeeRoles}</div><div className="muted">AI employee roles you can configure</div></div>
           <div className="stat-block"><div className="kpi">{FEATURES.length}</div><div className="muted">modules across the platform</div></div>
           <div className="stat-block"><div className="kpi">24/7</div><div className="muted">the platform doesn’t clock out</div></div>
         </div>

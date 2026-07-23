@@ -79,6 +79,70 @@ export function industryStatusList(): (StatusEntry & { icon: string; tagline: st
   }));
 }
 
+/**
+ * Optional apps / paid add-ons (Release 3). The Apps page, Pricing page and
+ * Features page ALL read from this one list — the three previously disagreed
+ * (Pricing sold Inventory/Fleet/HR as included while Apps said "not
+ * available yet"). `planTier` is the plan where the capability belongs once
+ * live; it is pricing policy, and anything not `live` must always be shown
+ * with its status label, never as a working feature.
+ */
+export interface AddOnEntry extends StatusEntry {
+  /** Route inside the app when live. */
+  href?: string;
+  /** Plan tier the capability is sold with (policy statement). */
+  planTier: string;
+  /** True only when a tenant can actually use it in production today. */
+  productionReady: boolean;
+  description: string;
+}
+
+export const OPTIONAL_APP_STATUS: AddOnEntry[] = [
+  {
+    key: 'field-operations',
+    label: 'Field Operations',
+    status: 'live',
+    href: '/apps/field-operations',
+    planTier: 'All plans',
+    productionReady: true,
+    description: 'Job tracking, dispatch queue and field team status.',
+  },
+  {
+    key: 'inventory',
+    label: 'Inventory',
+    status: 'coming-soon',
+    planTier: 'Business',
+    productionReady: false,
+    description: 'Parts, stock levels and truck inventory.',
+  },
+  {
+    key: 'fleet',
+    label: 'Fleet',
+    status: 'coming-soon',
+    planTier: 'Business',
+    productionReady: false,
+    description: 'Vehicles, assignments and maintenance.',
+  },
+  {
+    key: 'hr',
+    label: 'HR & Training',
+    status: 'coming-soon',
+    planTier: 'Pro',
+    productionReady: false,
+    description: 'Team records, onboarding and training workspaces.',
+  },
+];
+
+/**
+ * AI workforce facts for public copy. Update alongside the API roster in
+ * apps/api/src/employees/roster/ — the count is asserted publicly, so it
+ * must never drift from the real registry.
+ */
+export const AI_WORKFORCE_FACTS = {
+  employeeRoles: 9, // sales, customer_success, collections, recruiting, operations_manager, marketing, receptionist, executive, command_center
+  note: 'Nine AI employee roles ship today, including the Command Center. External-impact actions (messages, documents, payment links) require your approval unless you explicitly grant autonomous authority.',
+};
+
 /** Verticals with no preset yet — genuinely not buildable at signup today. */
 export const INDUSTRIES_COMING_SOON: { icon: string; label: string }[] = [
   { icon: '💇', label: 'Hair Salons & Barbershops' },

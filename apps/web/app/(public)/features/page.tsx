@@ -33,12 +33,12 @@ const CUSTOMER: Item[] = [
 
 const KNOW: Item[] = [
   { ico: '📊', name: 'Dashboard & Analytics', desc: 'Revenue, pipeline and job KPIs computed live from your own data — no fabricated numbers, ever.', status: 'live' },
-  { ico: '🏆', name: 'AI employee roster', desc: 'Configure named AI roles (Sales, Receptionist, Collections and more) from the Voice AI workspace.', status: 'beta' },
+  { ico: '🏆', name: 'AI Workforce', desc: 'A dedicated AI Workforce page: nine configurable roles, a natural-language Command Center, human approvals for outside-impact actions, and exact per-role usage tracking.', status: 'live' },
   { ico: '🧠', name: 'Executive Briefing', desc: 'A daily AI-written summary of your numbers and what needs attention.', status: 'coming-soon' },
 ];
 
 const EXTEND: Item[] = [
-  { ico: '🧩', name: 'Apps & Marketplace', desc: 'Install optional capabilities — Field Operations, Inventory, Fleet, HR — as you need them.', status: 'live' },
+  { ico: '🧩', name: 'Apps & Marketplace', desc: 'Field Operations is installable today; Inventory, Fleet and HR are coming soon and clearly labeled in-app.', status: 'live' },
   { ico: '🔌', name: 'Public API', desc: 'Scoped API keys with per-key rate limits over a /v1 REST surface for leads, jobs, invoices and account data.', status: 'live' },
   { ico: '📣', name: 'Marketing Studio & Social', desc: 'Campaigns, brand kit and scheduled social posting.', status: 'coming-soon' },
   { ico: '🌐', name: 'Websites & SEO', desc: 'Landing pages, forms and a booking presence on your own domain.', status: 'coming-soon' },

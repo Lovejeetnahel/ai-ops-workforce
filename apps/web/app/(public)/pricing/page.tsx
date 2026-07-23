@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { StatusBadge } from '../../../components/StatusBadge';
+import { AI_WORKFORCE_FACTS } from '../../../lib/product-status';
 
 export const metadata: Metadata = {
   title: 'Sofilic Pricing — Plans, Add-ons and What’s Included',
@@ -28,18 +29,21 @@ const PLANS = [
   {
     name: 'Business', price: 299, popular: false,
     blurb: 'Established operations running the full AI employee roster.',
-    limit: '25 staff users · full 8-role AI employee roster',
-    includes: ['Everything in Growth', 'Inventory + Fleet add-on apps'],
+    limit: `25 staff users · full ${AI_WORKFORCE_FACTS.employeeRoles}-role AI employee roster`,
+    includes: ['Everything in Growth'],
     beta: [],
-    comingSoon: ['Website builder'],
+    // Inventory + Fleet belong to this tier but are NOT live yet — they must
+    // never appear under "includes" (that's the drift this file is guarding
+    // against; the Apps page and OPTIONAL_APP_STATUS say Coming soon).
+    comingSoon: ['Inventory + Fleet add-on apps', 'Website builder'],
   },
   {
     name: 'Pro', price: 499, popular: false,
     blurb: 'Multi-crew companies that need deeper operational tooling.',
     limit: '50 staff users',
-    includes: ['Everything in Business', 'HR & training workspaces', 'Client portal variants', 'Public API access'],
+    includes: ['Everything in Business', 'Client portal variants', 'Public API access'],
     beta: [],
-    comingSoon: [],
+    comingSoon: ['HR & training workspaces'],
   },
   {
     name: 'Enterprise', price: 999, popular: false, custom: true,
