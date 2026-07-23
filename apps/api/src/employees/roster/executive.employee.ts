@@ -18,7 +18,7 @@ export class ExecutiveEmployee extends BaseEmployeeAgent {
     department: 'Leadership',
     description: 'Reports, forecasts, scorecards, growth and cost recommendations, goal tracking.',
     defaultAuthority: 'APPROVE', // owner can raise to AUTONOMOUS per employee — approval-first is the published default
-    tools: ['llm'],
+    tools: ['llm', 'list_goals'], // Sprint 1: the Executive reads the goals it reports on
     triggers: ['payment.succeeded'],
   };
 

@@ -38,6 +38,7 @@ export class AgentOrchestrator {
         contactId: input.subjects?.contactId ?? null,
         leadId: input.subjects?.leadId ?? null,
         jobId: input.subjects?.jobId ?? null,
+        goalId: input.subjects?.goalId ?? null,
         input: input as any,
       } as any,
     });

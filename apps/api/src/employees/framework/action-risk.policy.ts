@@ -33,6 +33,7 @@ export const TOOL_RISK: Record<string, ToolRisk> = {
   vision: 'SAFE',
   business_snapshot: 'SAFE',
   list_leads: 'SAFE',
+  list_goals: 'SAFE',
   list_overdue_invoices: 'SAFE',
 };
 

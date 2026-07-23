@@ -4,6 +4,8 @@ export interface SubjectRefs {
   contactId?: string | null;
   leadId?: string | null;
   jobId?: string | null;
+  /** Sprint 1: the Goal this work supports — rolls the task up on the goal. */
+  goalId?: string | null;
 }
 
 /** A unit of work handed to an AI employee. */

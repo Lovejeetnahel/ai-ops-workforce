@@ -13,6 +13,8 @@ export interface ComposeInput {
   subject?: { type: MemorySubject; id: string; label?: string };
   /** Retrieval breadth. */
   topK?: number;
+  /** Sprint 1: which AI employee this context serves — selects the goals it supports. */
+  agent?: { key?: string; department?: string };
 }
 
 /**
@@ -37,11 +39,39 @@ export class BrainContextService {
     try {
       // retrieveGrounded embeds `query` ONCE and reuses it for both knowledge
       // search and memory recall (was two separate embedding calls — AI cost).
-      const [profile, grounded] = await Promise.all([
+      const [profile, grounded, company] = await Promise.all([
         this.brain.businessProfile(input.role as string),
         this.brain.retrieveGrounded(input.query, { role: input.role as string, topK: input.topK, subject: input.subject }),
+        // Structured facts failing must not take RAG down with them.
+        this.brain.companyFacts(input.agent).catch(() => ({ profile: null, goals: [] as any[] })),
       ]);
       const { knowledge, memory } = grounded;
+
+      // Sprint 1: structured company identity + the goals this agent supports.
+      if (company.profile) {
+        const p = company.profile;
+        const identityLines = [
+          p.brandName || p.legalName ? `- Name: ${p.brandName ?? p.legalName}` : null,
+          p.tagline ? `- Tagline: ${p.tagline}` : null,
+          p.mission ? `- Mission: ${truncate(p.mission, 240)}` : null,
+          p.vision ? `- Vision: ${truncate(p.vision, 240)}` : null,
+          p.targetMarket ? `- Target market: ${truncate(p.targetMarket, 240)}` : null,
+          p.brandVoice ? `- Voice: write like this — ${truncate(p.brandVoice, 240)}` : null,
+        ].filter(Boolean);
+        if (identityLines.length) parts.push('## Company identity\n' + identityLines.join('\n'));
+        const rules = Array.isArray(p.businessRules) ? (p.businessRules as unknown[]).filter((r) => typeof r === 'string').slice(0, 12) : [];
+        if (rules.length) {
+          parts.push('## Standing business rules (always follow these)\n' + rules.map((r) => `- ${truncate(String(r), 200)}`).join('\n'));
+        }
+      }
+      if (company.goals.length) {
+        parts.push(
+          '## Active goals you support (work toward these)\n' +
+            company.goals
+              .map((g) => `- [${g.priority}] ${g.title} — ${g.progress}% done${g.dueAt ? `, due ${new Date(g.dueAt).toISOString().slice(0, 10)}` : ''}`)
+              .join('\n'),
+        );
+      }
 
       if (profile.length) {
         parts.push(
