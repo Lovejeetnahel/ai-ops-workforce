@@ -36,6 +36,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
+      # Checkout FIRST: actions/checkout wipes the workspace, so it must never
+      # run after remote.sh is written (run #3 lost the cleanup step to this).
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Prepare SSH auth
         env:
           PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
@@ -152,10 +157,6 @@ jobs:
           REMOTE
           # Prepend run-specific variables (values are workflow inputs, not secrets).
           sed -i "1i MODE='${MODE}'; EXPECTED_COMMIT='${EXPECTED_COMMIT}'; ROLLBACK_TO='${ROLLBACK_TO}'" remote.sh
-
-      - name: Checkout (smoke script)
-        if: ${{ inputs.mode == 'smoke' }}
-        uses: actions/checkout@v4
 
       - name: Authenticated production smoke tests (mode=smoke)
         id: smoke
