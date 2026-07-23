@@ -39,10 +39,18 @@ export class BrainContextService {
     try {
       // retrieveGrounded embeds `query` ONCE and reuses it for both knowledge
       // search and memory recall (was two separate embedding calls — AI cost).
+      // Each source fails open INDEPENDENTLY: an embeddings-provider outage
+      // (e.g. an invalid Voyage key — seen in production, err_89cf7e1ae093)
+      // must not also discard the structured company facts and goals, which
+      // need no embeddings at all.
       const [profile, grounded, company] = await Promise.all([
-        this.brain.businessProfile(input.role as string),
-        this.brain.retrieveGrounded(input.query, { role: input.role as string, topK: input.topK, subject: input.subject }),
-        // Structured facts failing must not take RAG down with them.
+        this.brain.businessProfile(input.role as string).catch(() => []),
+        this.brain
+          .retrieveGrounded(input.query, { role: input.role as string, topK: input.topK, subject: input.subject })
+          .catch((err) => {
+            this.logger.warn(`knowledge retrieval unavailable (embeddings?): ${(err as Error).message}`);
+            return { knowledge: [], memory: [] };
+          }),
         this.brain.companyFacts(input.agent).catch(() => ({ profile: null, goals: [] as any[] })),
       ]);
       const { knowledge, memory } = grounded;
