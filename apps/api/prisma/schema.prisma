@@ -208,6 +208,10 @@ model Tenant {
   bookingRequests BookingRequest[]
   agentApprovals  AgentApproval[]
   aiUsageEvents   AiUsageEvent[]
+  companyProfile  CompanyProfile?
+  goals           Goal[]
+  kpis            Kpi[]
+  kpiSnapshots    KpiSnapshot[]
 
   @@index([industryModule])
 }
@@ -1252,7 +1256,10 @@ model AgentInstallation {
   tenantId    String
   agentKey    String
   enabled     Boolean        @default(true)
-  authority   AgentAuthority @default(AUTONOMOUS)
+  // Approval-first: the column default matches the product promise (Release 3
+  // defense-in-depth follow-up — application code always writes explicitly,
+  // and unconfirmed AUTONOMOUS is neutralized by authority-policy.ts anyway).
+  authority   AgentAuthority @default(APPROVE)
   config      Json           @default("{}")
   permissions String[]       @default([])
   version     String         @default("1.0.0")
@@ -1282,6 +1289,7 @@ model AgentTask {
   contactId     String?
   leadId        String?
   jobId         String?
+  goalId        String? // Business Brain: which Goal this work supports (scalar ref, like the others)
   input         Json            @default("{}")
   output        Json            @default("{}")
   reason        String?
@@ -1301,6 +1309,7 @@ model AgentTask {
   @@index([tenantId, agentKey, status])
   @@index([tenantId, createdAt])
   @@index([tenantId, parentTaskId])
+  @@index([tenantId, goalId])
 }
 
 // ═══════════════════ AI Workforce Phase 3: approvals + usage ═══════════════
@@ -1705,4 +1714,117 @@ model RefreshToken {
   createdAt DateTime  @default(now())
 
   @@index([userId])
+}
+
+// ───────────────────── Business Brain (Sprint 1) ─────────────────────
+// Structured company truth layered on top of the existing Brain (KnowledgeDoc
+// RAG + EntityMemory). CompanyProfile/Goal/Kpi are STRUCTURED records the
+// Goals/KPI engines and the executive dashboard query directly; free-text
+// company knowledge (policies, FAQs, pricing prose, SOPs) continues to live
+// in KnowledgeDoc — this deliberately does NOT duplicate that system.
+
+/// One structured identity record per tenant. Timezone deliberately stays on
+/// Tenant (single source — /tenants/profile updates it); this holds the rest.
+model CompanyProfile {
+  id           String   @id @default(cuid())
+  tenantId     String   @unique
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  legalName    String?
+  brandName    String?
+  tagline      String?
+  mission      String?
+  vision       String?
+  brandVoice   String? // how every AI employee should sound
+  targetMarket String?
+  workingHours  Json    @default("{}") // { mon: {open,close}, … } — display + agent context
+  locations     Json    @default("[]") // [{ label, address, phone? }]
+  businessRules Json    @default("[]") // ["Never discount more than 10%", …] — injected into agent context
+  updatedById  String? // User.id of last editor (scalar ref)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+enum GoalStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ACHIEVED
+  MISSED
+  ARCHIVED
+}
+
+enum GoalPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+/// Goals engine: Business → Goals (→ sub-goals via parentGoalId) → departments
+/// → AI employees (agentKeys) → tasks (AgentTask.goalId) → KPIs (Kpi.goalId).
+model Goal {
+  id           String       @id @default(cuid())
+  tenantId     String
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  title        String
+  description  String?
+  priority     GoalPriority @default(MEDIUM)
+  status       GoalStatus   @default(ACTIVE)
+  progress     Int          @default(0) // 0–100, human- or service-updated; never fabricated
+  department   String? // matches AgentDefinition.department (Sales, Finance, …)
+  ownerUserId  String? // accountable human (scalar ref, like AgentTask's refs)
+  agentKeys    String[]     @default([]) // AI employees that support this goal
+  parentGoalId String? // hierarchy (scalar ref + index; no FK cascade by design)
+  startAt      DateTime?
+  dueAt        DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  kpis Kpi[]
+
+  @@index([tenantId, status, priority])
+  @@index([tenantId, parentGoalId])
+  @@index([tenantId, department])
+}
+
+enum KpiDirection {
+  UP_IS_GOOD
+  DOWN_IS_GOOD
+}
+
+/// KPI definitions. `metricKey` binds a KPI to a platform-computed metric
+/// (revenue, open leads, …) whose value is derived from REAL tenant data at
+/// read time; a null metricKey means values are entered manually. Values are
+/// never invented — a KPI with no data reports null, not zero-padding.
+model Kpi {
+  id           String        @id @default(cuid())
+  tenantId     String
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name         String
+  unit         String? // "$", "%", "leads", …
+  direction    KpiDirection  @default(UP_IS_GOOD)
+  metricKey    String? // platform metric source; null = manual entry
+  currentValue Float?
+  targetValue  Float?
+  goalId       String?
+  goal         Goal?         @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  snapshots KpiSnapshot[]
+
+  @@index([tenantId, goalId])
+}
+
+/// Historical KPI values — one row per recorded observation.
+model KpiSnapshot {
+  id         String   @id @default(cuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  kpiId      String
+  kpi        Kpi      @relation(fields: [kpiId], references: [id], onDelete: Cascade)
+  value      Float
+  capturedAt DateTime @default(now())
+
+  @@index([tenantId, kpiId, capturedAt])
 }
