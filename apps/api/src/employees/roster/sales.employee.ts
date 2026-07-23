@@ -15,7 +15,7 @@ export class SalesEmployee extends BaseEmployeeAgent {
     name: 'Sales AI',
     department: 'Sales',
     description: 'Lead qualification, scoring, quoting, follow-up and pipeline movement.',
-    defaultAuthority: 'AUTONOMOUS',
+    defaultAuthority: 'APPROVE', // owner can raise to AUTONOMOUS per employee — approval-first is the published default
     tools: ['llm', 'generate_quote', 'send_document', 'sms', 'email', 'search_knowledge'],
     triggers: ['lead.created'],
   };

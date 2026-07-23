@@ -2,13 +2,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
-
-const OPTIONAL_APPS = [
-  { key: 'field-operations', name: 'Field Operations', desc: 'Jobs, dispatch, field team, time tracking and quotes for mobile crews.', href: '/apps/field-operations', available: true },
-  { key: 'inventory', name: 'Inventory', desc: 'Track parts and products consumed on jobs.', href: null, available: false },
-  { key: 'fleet', name: 'Fleet', desc: 'Vehicles, assignments and maintenance reminders.', href: null, available: false },
-  { key: 'hr', name: 'HR', desc: 'Team records, certifications and time off.', href: null, available: false },
-];
+import { AVAILABILITY_LABEL, OPTIONAL_APP_STATUS } from '../../../lib/product-status';
 
 export default function AppsPage() {
   const [items, setItems] = useState<any[] | null>(null);
@@ -31,17 +25,17 @@ export default function AppsPage() {
       <div className="panel" style={{ marginBottom: 20 }}>
         <h3>Optional apps</h3>
         <div className="grid">
-          {OPTIONAL_APPS.map((a) => (
+          {OPTIONAL_APP_STATUS.map((a) => (
             <div className="card" key={a.key}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span className="name">{a.name}</span>
-                <span className={`chip ${a.available ? 'ok' : 'warn'}`}>{a.available ? 'Available' : 'Not available yet'}</span>
+                <span className="name">{a.label}</span>
+                <span className={`chip ${a.status === 'live' ? 'ok' : 'warn'}`}>{a.status === 'live' ? 'Available' : AVAILABILITY_LABEL[a.status]}</span>
               </div>
-              <div className="meta" style={{ minHeight: 32, margin: '6px 0 10px' }}>{a.desc}</div>
-              {a.href ? (
+              <div className="meta" style={{ minHeight: 32, margin: '6px 0 10px' }}>{a.description}</div>
+              {a.status === 'live' && a.href ? (
                 <Link href={a.href} className="btn ghost sm">Open</Link>
               ) : (
-                <button className="btn ghost sm" disabled>Enable</button>
+                <button className="btn ghost sm" disabled>Coming soon</button>
               )}
             </div>
           ))}

@@ -18,7 +18,14 @@ type Employee = {
   description: string;
   defaultAuthority: string;
   tools: string[];
-  installation?: { enabled: boolean; authority: string; config: Record<string, any> };
+  installation?: {
+    enabled: boolean;
+    authority: string; // EFFECTIVE authority (what the gateway enforces)
+    storedAuthority?: string | null;
+    authorityReviewRequired?: boolean;
+    authorityConfirmed?: boolean;
+    config: Record<string, any>;
+  };
 };
 
 function fmtCostMicros(v: string | null | undefined): string | null {
@@ -100,6 +107,25 @@ export default function AiWorkforcePage() {
 
   const toggleEmployee = async (e: Employee) => {
     await api.setEmployeeEnabled(e.key, !(e.installation?.enabled ?? true)).catch(() => undefined);
+    refresh();
+  };
+
+  // Owner resolution of the "authority review required" state (legacy rows
+  // that inherited AUTONOMOUS from the old default). The endpoint is
+  // OWNER-only server-side; an admin gets an honest message, not silence.
+  const [authorityError, setAuthorityError] = useState<string | null>(null);
+  const confirmAuthority = async (e: Employee, authority: 'APPROVE' | 'AUTONOMOUS') => {
+    setAuthorityError(null);
+    try {
+      await api.installEmployee(e.key, { authority });
+    } catch (err) {
+      const msg = String((err as Error).message ?? '');
+      setAuthorityError(
+        msg.startsWith('403')
+          ? 'Only the account owner can confirm an employee’s authority.'
+          : 'Could not save that authority choice — nothing was changed.',
+      );
+    }
     refresh();
   };
 
@@ -210,6 +236,7 @@ export default function AiWorkforcePage() {
       {/* Employees */}
       <div className="panel" style={{ marginBottom: 16 }}>
         <h3>Employees</h3>
+        {authorityError && <div className="auth-err">{authorityError}</div>}
         {employees === null ? (
           <div className="meta">Loading…</div>
         ) : (
@@ -225,6 +252,19 @@ export default function AiWorkforcePage() {
                   </div>
                   <div className="meta">{e.department} · authority: {(e.installation?.authority ?? e.defaultAuthority).toLowerCase()}</div>
                   <div className="meta" style={{ margin: '6px 0' }}>{e.description}</div>
+                  {e.installation?.authorityReviewRequired && (
+                    <div className="card" style={{ margin: '6px 0', padding: '10px 12px', borderColor: 'var(--amber, #b8860b)' }}>
+                      <div className="meta" style={{ marginBottom: 8 }}>
+                        <strong>Authority review required.</strong> This employee was set to act autonomously
+                        under an old default, not by an explicit decision. Until you confirm, it asks for
+                        your approval before any outside-impact action.
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <button className="btn ghost sm" onClick={() => confirmAuthority(e, 'APPROVE')}>Keep approval-first</button>
+                        <button className="btn ghost sm" onClick={() => confirmAuthority(e, 'AUTONOMOUS')}>Confirm autonomous</button>
+                      </div>
+                    </div>
+                  )}
                   {stat && (stat.tasksCompleted ?? 0) + (stat.tasksFailed ?? 0) > 0 ? (
                     <div className="meta">Success rate: {Math.round(stat.successRate ?? 0)}% · {stat.tasksCompleted ?? 0} done{(stat.tasksFailed ?? 0) > 0 ? ` · ${stat.tasksFailed} failed` : ''}</div>
                   ) : (

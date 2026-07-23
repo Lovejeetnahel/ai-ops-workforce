@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import { IndustryModule, UserRole } from '@prisma/client';
+import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { AuthService } from '../auth/auth.service';
 import { AutomationService } from '../automation/automation.service';
@@ -7,6 +8,11 @@ import { tenantContext } from '../common/tenancy/tenant-context';
 
 /** Bumped whenever the Terms/Privacy content materially changes; recorded on acceptance. */
 const CURRENT_TERMS_VERSION = '2026-07-14';
+
+/** Pure name→slug derivation, exported for unit tests. */
+export function slugify(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+}
 
 /**
  * Tenant provisioning. Creating a business is the moment the whole product
@@ -49,7 +55,7 @@ export class TenantsService {
       throw new ConflictException('An account with that email already exists. Try signing in instead.');
     }
 
-    const slug = dto.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const slug = await this.uniqueSlug(dto.name);
     const ownerName = `${dto.firstName} ${dto.lastName}`.trim();
     const now = new Date();
 
@@ -103,10 +109,44 @@ export class TenantsService {
     return { id: tenant.id, slug: tenant.slug, industryModule: tenant.industryModule };
   }
 
+  /**
+   * Collision-safe tenant slug. Tenant.slug is @unique, and the old
+   * name-only derivation meant a second business whose name slugified to an
+   * existing slug crashed provisioning with a P2002 — surfaced in production
+   * as a generic "Could not create your account." Tries name, name-2 …
+   * name-9, then falls back to a random suffix (also covering the rare
+   * concurrent-signup race via the caller's create still being guarded by
+   * the DB constraint).
+   */
+  private async uniqueSlug(name: string): Promise<string> {
+    const base = slugify(name) || 'business';
+    for (let i = 0; i < 9; i++) {
+      const candidate = i === 0 ? base : `${base}-${i + 1}`;
+      const existing = await this.prisma.tenant.findUnique({ where: { slug: candidate }, select: { id: true } });
+      if (!existing) return candidate;
+    }
+    return `${base}-${randomBytes(3).toString('hex')}`;
+  }
+
   current() {
     return this.prisma.tenant.findUniqueOrThrow({
       where: { id: tenantContext.tenantId },
       select: { id: true, name: true, slug: true, industryModule: true, timezone: true, settings: true },
+    });
+  }
+
+  /** Update the tenant's timezone (validated as a real IANA zone). */
+  async updateTimezone(timezone: string) {
+    try {
+      // Throws RangeError for anything that is not a valid IANA time zone.
+      new Intl.DateTimeFormat('en-US', { timeZone: timezone });
+    } catch {
+      throw new BadRequestException(`"${timezone}" is not a valid IANA timezone (e.g. America/Toronto).`);
+    }
+    return this.prisma.db.tenant.update({
+      where: { id: tenantContext.tenantId },
+      data: { timezone },
+      select: { id: true, timezone: true },
     });
   }
 

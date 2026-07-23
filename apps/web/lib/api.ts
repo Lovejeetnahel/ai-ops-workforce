@@ -90,6 +90,8 @@ export const api = {
   currentTenant: () => request<{ id: string; name: string; slug: string; industryModule: string; timezone: string; settings: any }>(`/tenants/me`),
   updateOnboarding: (body: { completedSteps?: string[]; skipped?: boolean; dashboardReached?: boolean }) =>
     request<any>(`/tenants/onboarding`, { method: 'PATCH', body: JSON.stringify(body) }),
+  patchTenantProfile: (body: { timezone: string }) =>
+    request<{ id: string; timezone: string }>(`/tenants/profile`, { method: 'PATCH', body: JSON.stringify(body) }),
 
   // crm
   moduleConfig: () => request<any>(`/config/module`),
@@ -118,6 +120,8 @@ export const api = {
   employeeTasks: (agentKey?: string) => request<any[]>(`/employees/tasks${agentKey ? `?agentKey=${encodeURIComponent(agentKey)}` : ''}`),
   employeeMetrics: (key: string) => request<any>(`/employees/${key}/metrics`),
   setEmployeeEnabled: (key: string, enabled: boolean) => request(`/employees/${key}/${enabled ? 'enable' : 'disable'}`, { method: 'POST' }),
+  installEmployee: (key: string, body: { enabled?: boolean; authority?: 'SUGGEST' | 'APPROVE' | 'AUTONOMOUS' }) =>
+    request<any>(`/employees/${key}/install`, { method: 'POST', body: JSON.stringify(body) }),
   patchEmployeeConfig: (key: string, body: Record<string, unknown>) => request(`/employees/${key}/config`, { method: 'PATCH', body: JSON.stringify(body) }),
   runCommand: (text: string) => request<any>(`/employees/command`, { method: 'POST', body: JSON.stringify({ text }) }),
   workforceApprovals: () => request<any[]>(`/employees/approvals`),

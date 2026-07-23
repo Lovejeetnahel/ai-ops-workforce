@@ -5,6 +5,31 @@ import { useRef, useState } from 'react';
 import { api, saveSession } from '../../../lib/api';
 import { parseApiError } from '../../../lib/api-error';
 import { SofilicMark } from '../../../components/Logo';
+
+/**
+ * Post-login destination from ?next=, hardened against open redirects: only
+ * same-origin, single-slash paths that resolve into the application are ever
+ * honored ("//evil.com", "https://…", "/login" loops and anything containing
+ * a scheme all fall back to /dashboard). Read at submit time from
+ * window.location so this client page needs no Suspense boundary.
+ */
+function safeNextPath(): string {
+  try {
+    const raw = new URLSearchParams(window.location.search).get('next') ?? '';
+    if (
+      raw.startsWith('/') &&
+      !raw.startsWith('//') &&
+      !raw.includes('://') &&
+      !raw.startsWith('/login') &&
+      !raw.startsWith('/signup')
+    ) {
+      return raw;
+    }
+  } catch {
+    /* SSR/parse issues → default */
+  }
+  return '/dashboard';
+}
 import { PasswordField } from '../../../components/PasswordField';
 
 export default function LoginPage() {
@@ -24,7 +49,7 @@ export default function LoginPage() {
     try {
       const res = await api.login(email.trim().toLowerCase(), password);
       saveSession(res);
-      router.push('/dashboard');
+      router.push(safeNextPath());
       // Deliberately leave loading=true through the redirect — the button
       // should stay disabled until the browser actually navigates away.
     } catch (err: any) {

@@ -45,17 +45,26 @@ export class AgentOrchestrator {
 
     try {
       const result = await agent.handle(input, task.id, install.authority);
+      // ok:false is a graceful non-accomplishment (unknown task type, missing
+      // input, provider not configured). Recording it as DONE would surface a
+      // fake 100% success rate — record it as FAILED with the honest summary.
+      const accomplished = result.ok !== false;
       await this.prisma.db.agentTask.update({
         where: { id: task.id },
         data: {
-          status: 'DONE',
+          status: accomplished ? 'DONE' : 'FAILED',
           output: (result.output ?? { summary: result.summary }) as any,
           reason: result.summary,
+          error: accomplished ? undefined : result.summary,
           confidence: typeof result.confidence === 'number' ? Math.max(0, Math.min(1, result.confidence)) : undefined,
           endedAt: new Date(),
         },
       });
-      await this.bus.emit({ name: DomainEvents.AGENT_TASK_COMPLETED, tenantId: tenantContext.tenantId, payload: { task: { id: task.id, agentKey }, value: result.value ?? 0 } });
+      await this.bus.emit(
+        accomplished
+          ? { name: DomainEvents.AGENT_TASK_COMPLETED, tenantId: tenantContext.tenantId, payload: { task: { id: task.id, agentKey }, value: result.value ?? 0 } }
+          : { name: DomainEvents.AGENT_TASK_FAILED, tenantId: tenantContext.tenantId, payload: { task: { id: task.id, agentKey }, error: result.summary } },
+      );
       return { ...result, taskId: task.id };
     } catch (err) {
       await this.prisma.db.agentTask.update({ where: { id: task.id }, data: { status: 'FAILED', error: (err as Error).message, endedAt: new Date() } });

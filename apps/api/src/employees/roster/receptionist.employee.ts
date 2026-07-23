@@ -15,7 +15,7 @@ export class ReceptionistEmployee extends BaseEmployeeAgent {
     name: 'AI Receptionist',
     department: 'Front Office',
     description: 'Answers, qualifies, routes and books across voice/chat/SMS/email/portal; conversation summaries.',
-    defaultAuthority: 'AUTONOMOUS',
+    defaultAuthority: 'APPROVE', // owner can raise to AUTONOMOUS per employee — approval-first is the published default
     tools: ['llm', 'search_knowledge'],
     triggers: ['customer.booking.requested'],
   };

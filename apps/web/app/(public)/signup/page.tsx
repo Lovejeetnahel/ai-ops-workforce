@@ -102,10 +102,11 @@ export default function SignupPage() {
       saveSession(res);
       router.push('/onboarding');
     } catch (err) {
-      const { status, text } = parseApiError(err);
+      const { status, text, correlationId } = parseApiError(err);
+      const ref = correlationId ? ` If this keeps happening, contact support and quote reference ${correlationId}.` : '';
       if (status === 409) setError(text || 'An account with that email already exists. Try signing in instead.');
       else if (status === 400) setError(text || 'Please check your details and try again.');
-      else if (status !== null) setError('Could not create your account. Please check your details and try again.');
+      else if (status !== null) setError(`Could not create your account — something went wrong on our side, not with your details.${ref}`);
       else setError('Network error — check your connection and try again.');
       submitting.current = false;
       setLoading(false);
