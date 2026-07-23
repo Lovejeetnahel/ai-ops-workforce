@@ -131,6 +131,40 @@ export const api = {
   workforceUsage: () => request<any>(`/employees/usage`),
   aiStatus: () => request<any>(`/employees/ai-status`),
 
+  // Business Brain (Sprint 1)
+  brainProfile: () => request<any>(`/business-brain/profile`),
+  patchBrainProfile: (body: Record<string, unknown>) =>
+    request<any>(`/business-brain/profile`, { method: 'PATCH', body: JSON.stringify(body) }),
+  goals: (params?: { status?: string; department?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.status) q.set('status', params.status);
+    if (params?.department) q.set('department', params.department);
+    const qs = q.toString();
+    return request<any[]>(`/business-brain/goals${qs ? `?${qs}` : ''}`);
+  },
+  goal: (id: string) => request<any>(`/business-brain/goals/${id}`),
+  createGoal: (body: Record<string, unknown>) =>
+    request<any>(`/business-brain/goals`, { method: 'POST', body: JSON.stringify(body) }),
+  patchGoal: (id: string, body: Record<string, unknown>) =>
+    request<any>(`/business-brain/goals/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  setGoalProgress: (id: string, progress: number) =>
+    request<any>(`/business-brain/goals/${id}/progress`, { method: 'PATCH', body: JSON.stringify({ progress }) }),
+  archiveGoal: (id: string) => request<any>(`/business-brain/goals/${id}`, { method: 'DELETE' }),
+  kpis: () => request<any[]>(`/business-brain/kpis`),
+  createKpi: (body: Record<string, unknown>) =>
+    request<any>(`/business-brain/kpis`, { method: 'POST', body: JSON.stringify(body) }),
+  patchKpi: (id: string, body: Record<string, unknown>) =>
+    request<any>(`/business-brain/kpis/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  recordKpiValue: (id: string, value: number) =>
+    request<any>(`/business-brain/kpis/${id}/value`, { method: 'POST', body: JSON.stringify({ value }) }),
+  deleteKpi: (id: string) => request<any>(`/business-brain/kpis/${id}`, { method: 'DELETE' }),
+  executiveDashboard: () => request<any>(`/business-brain/executive`),
+  // Business Memory reuses the existing Brain knowledge endpoints.
+  knowledgeList: () => request<any[]>(`/brain/knowledge`),
+  knowledgeIngest: (body: { type: string; title: string; content: string; visibility?: string }) =>
+    request<any>(`/brain/knowledge`, { method: 'POST', body: JSON.stringify(body) }),
+  knowledgeArchive: (id: string) => request<any>(`/brain/knowledge/${id}`, { method: 'DELETE' }),
+
   // automation
   automationRules: () => request<any[]>(`/automation/rules`),
   toggleAutomationRule: (id: string, enabled: boolean) =>
