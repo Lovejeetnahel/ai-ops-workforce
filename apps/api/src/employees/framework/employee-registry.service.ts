@@ -63,7 +63,8 @@ export class EmployeeRegistry {
     });
     return {
       enabled: row?.enabled ?? true,
-      authority: (row?.authority ?? def?.defaultAuthority ?? 'AUTONOMOUS') as Authority,
+      // Fail safe: an unknown definition can never imply autonomy.
+      authority: (row?.authority ?? def?.defaultAuthority ?? 'APPROVE') as Authority,
       config: (row?.config as any) ?? {},
     };
   }
@@ -72,7 +73,10 @@ export class EmployeeRegistry {
     const result = await this.prisma.db.agentInstallation.upsert({
       where: { tenantId_agentKey: { tenantId: tenantContext.tenantId, agentKey: key } },
       update: { enabled: opts.enabled ?? undefined, authority: opts.authority ?? undefined, config: (opts.config as any) ?? undefined, permissions: opts.permissions ?? undefined },
-      create: { agentKey: key, enabled: opts.enabled ?? true, authority: opts.authority ?? 'AUTONOMOUS', config: (opts.config as any) ?? {}, permissions: opts.permissions ?? [] } as any,
+      // Creating a row (e.g. via an enable toggle) must never silently grant
+      // more autonomy than the definition's default — authority only rises
+      // when it is passed explicitly.
+      create: { agentKey: key, enabled: opts.enabled ?? true, authority: opts.authority ?? this.get(key)?.definition.defaultAuthority ?? 'APPROVE', config: (opts.config as any) ?? {}, permissions: opts.permissions ?? [] } as any,
     });
     await this.bus.emit({ name: DomainEvents.AGENT_INSTALLED, tenantId: tenantContext.tenantId, payload: { agentKey: key, enabled: result.enabled } });
     return result;

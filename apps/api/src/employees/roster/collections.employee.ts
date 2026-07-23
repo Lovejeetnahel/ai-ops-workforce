@@ -15,7 +15,7 @@ export class CollectionsEmployee extends BaseEmployeeAgent {
     name: 'Collections AI',
     department: 'Finance',
     description: 'Invoice reminders, payment follow-ups, escalation, risk scoring.',
-    defaultAuthority: 'AUTONOMOUS',
+    defaultAuthority: 'APPROVE', // owner can raise to AUTONOMOUS per employee — approval-first is the published default
     tools: ['llm', 'sms', 'email', 'payment_link'],
     triggers: [],
   };

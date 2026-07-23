@@ -15,7 +15,7 @@ export class CustomerSuccessEmployee extends BaseEmployeeAgent {
     name: 'Customer Success AI',
     department: 'Customer Success',
     description: 'Onboarding, check-ins, satisfaction, health scoring, churn prediction, expansion.',
-    defaultAuthority: 'AUTONOMOUS',
+    defaultAuthority: 'APPROVE', // owner can raise to AUTONOMOUS per employee — approval-first is the published default
     tools: ['llm', 'sms', 'email', 'recall_memory', 'remember'],
     triggers: ['job.completed', 'payment.succeeded'],
   };

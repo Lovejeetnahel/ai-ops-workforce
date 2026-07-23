@@ -14,10 +14,13 @@ describe('tenant slug derivation', () => {
   });
 
   it('collides for distinct names that normalize identically (the production bug)', () => {
-    // These two REAL-WORLD distinct business names produce the same slug —
-    // exactly the case that used to 500. uniqueSlug() must disambiguate.
-    expect(slugify('Joes Plumbing')).toBe(slugify('Joe’s Plumbing'));
+    // Distinct sign-ups that produce the same slug — exactly the case that
+    // used to 500 with a P2002. uniqueSlug() must disambiguate: two different
+    // businesses with the same name, or names differing only in punctuation
+    // that slugification collapses.
+    expect(slugify('Joe’s Plumbing')).toBe(slugify("Joe's Plumbing"));
     expect(slugify('A+B Cleaning')).toBe(slugify('A B Cleaning'));
+    expect(slugify('Acme Cleaning')).toBe(slugify('ACME - Cleaning!'));
   });
 
   it('empty/symbol-only names produce an empty base (uniqueSlug falls back to "business")', () => {

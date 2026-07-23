@@ -17,7 +17,7 @@ export class ExecutiveEmployee extends BaseEmployeeAgent {
     name: 'Executive AI',
     department: 'Leadership',
     description: 'Reports, forecasts, scorecards, growth and cost recommendations, goal tracking.',
-    defaultAuthority: 'AUTONOMOUS',
+    defaultAuthority: 'APPROVE', // owner can raise to AUTONOMOUS per employee — approval-first is the published default
     tools: ['llm'],
     triggers: ['payment.succeeded'],
   };
