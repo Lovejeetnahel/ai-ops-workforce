@@ -1,0 +1,159 @@
+name: Deploy Production
+
+# Manual-only production deployment for sofilic.com (/opt/aiow on the VPS).
+# Never triggered by push. Modes:
+#   deploy               — full release: backup tag + .env backup, ff-pull,
+#                          verify expected commit, migrate, build, restart,
+#                          verify everything, AUTO-ROLLBACK on any failure.
+#   rollback             — roll production back to a given tag/commit.
+#   cleanup-test-tenants — delete tenants named 'ZZ RELEASE VERIFY%' created
+#                          by post-deploy smoke tests (cascade removes data).
+# Secrets: PROD_SSH_HOST, PROD_SSH_USER, PROD_SSH_KEY (or PROD_SSH_PASSWORD).
+# No secret values are ever echoed.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'deploy | rollback | cleanup-test-tenants'
+        required: true
+        default: 'deploy'
+      expected_commit:
+        description: 'deploy: full SHA that must be contained in main'
+        required: false
+        default: ''
+      rollback_to:
+        description: 'rollback: tag or SHA to restore'
+        required: false
+        default: ''
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Prepare SSH auth
+        env:
+          PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          PROD_SSH_PASSWORD: ${{ secrets.PROD_SSH_PASSWORD }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          if [ -n "${PROD_SSH_KEY:-}" ]; then
+            printf '%s\n' "$PROD_SSH_KEY" > ~/.ssh/prod_key
+            chmod 600 ~/.ssh/prod_key
+            echo "AUTH_MODE=key" >> "$GITHUB_ENV"
+          elif [ -n "${PROD_SSH_PASSWORD:-}" ]; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+            echo "AUTH_MODE=password" >> "$GITHUB_ENV"
+          else
+            echo "Neither PROD_SSH_KEY nor PROD_SSH_PASSWORD is set." >&2
+            exit 1
+          fi
+
+      - name: Write remote script
+        env:
+          MODE: ${{ inputs.mode }}
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+          ROLLBACK_TO: ${{ inputs.rollback_to }}
+        run: |
+          cat > remote.sh <<'REMOTE'
+          set -euo pipefail
+          cd /opt/aiow
+          STAMP=$(date +%Y%m%d-%H%M%S)
+
+          psql_t() { docker compose exec -T postgres sh -lc "psql -U \"\${POSTGRES_USER:-aiow}\" -d \"\${POSTGRES_DB:-aiow}\" -tAc \"$1\""; }
+
+          verify_all() {
+            local ok=0
+            echo "== docker compose ps =="; docker compose ps
+            curl -fsS http://127.0.0.1:4000/api/health | grep -q sofilic-api || { echo "FAIL api health"; ok=1; }
+            [ "$(curl -s -o /dev/null -w '%{http_code}' https://sofilic.com/)" = "200" ] || { echo "FAIL web /"; ok=1; }
+            [ "$(curl -s -o /dev/null -w '%{http_code}' https://sofilic.com/robots.txt)" = "200" ] || { echo "FAIL robots"; ok=1; }
+            [ "$(curl -s -o /dev/null -w '%{http_code}' https://sofilic.com/sitemap.xml)" = "200" ] || { echo "FAIL sitemap"; ok=1; }
+            local DASH; DASH=$(curl -fsS https://sofilic.com/dashboard || true)
+            echo "$DASH" | grep -q 'name="robots" content="noindex' || { echo "FAIL dashboard noindex"; ok=1; }
+            echo "$DASH" | grep -q 'os-topbar' && { echo "FAIL dashboard shell leak"; ok=1; }
+            for t in AgentApproval AiUsageEvent CompanyProfile Goal Kpi KpiSnapshot; do
+              [ "$(psql_t "SELECT to_regclass('\"$t\"') IS NOT NULL;")" = "t" ] || { echo "FAIL table $t"; ok=1; }
+            done
+            [ "$(psql_t "SELECT count(*) FROM pg_indexes WHERE indexname LIKE '%hnsw%';")" = "2" ] || { echo "FAIL hnsw indexes"; ok=1; }
+            [ "$(psql_t "SELECT count(*) FROM _prisma_migrations WHERE finished_at IS NOT NULL;")" = "7" ] || { echo "FAIL migration count != 7"; ok=1; }
+            psql_t "SELECT column_default FROM information_schema.columns WHERE table_name='AgentInstallation' AND column_name='authority';" | grep -q APPROVE || { echo "FAIL authority default"; ok=1; }
+            if ss -tln | grep -E ':(3000|4000|5432|6379)\b' | grep -vE '127\.0\.0\.1|\[::1\]'; then echo "FAIL port exposure"; ok=1; fi
+            return $ok
+          }
+
+          case "$MODE" in
+            deploy)
+              [ -n "$EXPECTED_COMMIT" ] || { echo "expected_commit required"; exit 1; }
+              echo "== Pre-deploy state: $(git rev-parse --short HEAD)"
+              if [ -n "$(git status --porcelain)" ]; then echo "Working tree dirty — aborting"; git status --short; exit 1; fi
+              PREV=$(git rev-parse HEAD)
+              git tag "pre-release-4-${STAMP}" || true
+              cp .env ".env.backup-${STAMP}" && chmod 600 ".env.backup-${STAMP}"
+              echo "== Backup: tag pre-release-4-${STAMP}, .env.backup-${STAMP} (contents not shown)"
+              grep -q '^ANTHROPIC_API_KEY=..*' .env && echo "== ANTHROPIC_API_KEY: present" || echo "== ANTHROPIC_API_KEY: NOT set (stub mode)"
+              grep -q '^LLM_PRICING=..*' .env && echo "== LLM_PRICING: present" || echo "== LLM_PRICING: NOT set"
+              git fetch origin main && git checkout main && git pull --ff-only origin main
+              git merge-base --is-ancestor "$EXPECTED_COMMIT" HEAD || { echo "Expected commit $EXPECTED_COMMIT not in main"; exit 1; }
+              echo "== Deploying $(git rev-parse --short HEAD)"
+              docker compose build api worker web
+              docker compose run --rm api npx prisma migrate deploy
+              docker compose up -d
+              echo "== Waiting 25s for startup"; sleep 25
+              if verify_all; then
+                echo "== Recent logs:"; docker compose logs --tail 20 api; docker compose logs --tail 10 web
+                echo "DEPLOY_OK commit=$(git rev-parse HEAD) restore_tag=pre-release-4-${STAMP}"
+              else
+                echo "!! VERIFY FAILED — AUTO-ROLLBACK to ${PREV}"
+                git checkout "$PREV"
+                docker compose build api worker web
+                docker compose up -d
+                sleep 25
+                curl -fsS http://127.0.0.1:4000/api/health && echo "ROLLBACK_HEALTHY prev=${PREV}" || echo "ROLLBACK_UNHEALTHY — manual attention required"
+                docker compose logs --tail 40 api
+                exit 1
+              fi
+              ;;
+            rollback)
+              [ -n "$ROLLBACK_TO" ] || { echo "rollback_to required"; exit 1; }
+              git fetch --tags origin
+              git checkout "$ROLLBACK_TO"
+              docker compose build api worker web
+              docker compose up -d
+              sleep 25
+              curl -fsS http://127.0.0.1:4000/api/health && echo "ROLLBACK_OK now=$(git rev-parse --short HEAD)"
+              ;;
+            cleanup-test-tenants)
+              # Smoke-test tenants are named with this exact marker by the
+              # release process; cascade delete removes all their data.
+              N=$(psql_t "DELETE FROM \"Tenant\" WHERE name LIKE 'ZZ RELEASE VERIFY%'; SELECT 1;" | tail -1 || true)
+              echo "CLEANUP_DONE"
+              psql_t "SELECT count(*) FROM \"Tenant\" WHERE name LIKE 'ZZ RELEASE VERIFY%';"
+              ;;
+            *) echo "unknown mode: $MODE"; exit 1 ;;
+          esac
+          REMOTE
+          # Prepend run-specific variables (values are workflow inputs, not secrets).
+          sed -i "1i MODE='${MODE}'; EXPECTED_COMMIT='${EXPECTED_COMMIT}'; ROLLBACK_TO='${ROLLBACK_TO}'" remote.sh
+
+      - name: Run on production
+        env:
+          HOST: ${{ secrets.PROD_SSH_HOST }}
+          USER: ${{ secrets.PROD_SSH_USER }}
+          PROD_SSH_PASSWORD: ${{ secrets.PROD_SSH_PASSWORD }}
+        run: |
+          set -euo pipefail
+          SSH_OPTS="-o StrictHostKeyChecking=accept-new -o ServerAliveInterval=30 -o ConnectTimeout=15"
+          if [ "$AUTH_MODE" = "key" ]; then
+            ssh $SSH_OPTS -i ~/.ssh/prod_key "$USER@$HOST" 'bash -s' < remote.sh
+          else
+            # sshpass -e reads the password from SSHPASS (env, not argv).
+            export SSHPASS="$PROD_SSH_PASSWORD"
+            sshpass -e ssh $SSH_OPTS "$USER@$HOST" 'bash -s' < remote.sh
+          fi

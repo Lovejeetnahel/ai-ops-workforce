@@ -68,6 +68,38 @@ export class BusinessBrainService {
   }
 
   /**
+   * Sprint 1: structured company truth for agent grounding — the
+   * CompanyProfile record plus the ACTIVE goals this agent supports (explicit
+   * agentKeys assignment or same department, highest priority first). Read
+   * directly from the tenant-scoped tables; the management APIs live in
+   * BusinessBrainModule. Cheap (two indexed queries), no embeddings.
+   */
+  async companyFacts(agent?: { key?: string; department?: string }) {
+    const [profile, goals] = await Promise.all([
+      this.prisma.db.companyProfile.findFirst(),
+      this.prisma.db.goal.findMany({
+        where: {
+          status: 'ACTIVE',
+          ...(agent?.key || agent?.department
+            ? {
+                OR: [
+                  ...(agent.key ? [{ agentKeys: { has: agent.key } }] : []),
+                  ...(agent.department ? [{ department: agent.department }] : []),
+                  // Company-wide goals (no department, no assignment) apply to everyone.
+                  { AND: [{ department: null }, { agentKeys: { isEmpty: true } }] },
+                ],
+              }
+            : {}),
+        },
+        orderBy: [{ priority: 'desc' }, { dueAt: 'asc' }],
+        take: 5,
+        select: { id: true, title: true, priority: true, progress: true, dueAt: true, department: true },
+      }),
+    ]);
+    return { profile, goals };
+  }
+
+  /**
    * The structured "who is this business" snapshot used to ground every agent:
    * profile + services + pricing, role-filtered. Cheap, no embeddings.
    */

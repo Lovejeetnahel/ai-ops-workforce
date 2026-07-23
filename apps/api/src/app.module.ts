@@ -14,6 +14,7 @@ import { PortalModule } from './portal/portal.module';
 import { FieldModule } from './field/field.module';
 import { EmployeesModule } from './employees/employees.module';
 import { EnterpriseModule } from './enterprise/enterprise.module';
+import { BusinessBrainModule } from './business-brain/business-brain.module';
 import { LaunchModule } from './launch/launch.module';
 import { AuthModule } from './auth/auth.module';
 import { TenantsModule } from './tenants/tenants.module';
@@ -51,6 +52,7 @@ import { HealthController } from './health.controller';
     FieldModule,
     EmployeesModule,
     EnterpriseModule,
+    BusinessBrainModule,
     LaunchModule,
     TenantsModule,
     LeadsModule,

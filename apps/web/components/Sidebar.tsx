@@ -22,6 +22,10 @@ type NavSection = { title?: string; links: NavItem[] };
 const SECTIONS: NavSection[] = [
   { links: [{ href: '/dashboard', label: 'Dashboard', ico: '⌘' }] },
   { links: [{ href: '/ai-workforce', label: 'AI Workforce', ico: '❖' }] },
+  // Sprint 1 (founder-directed): the Business Brain — company profile, goals,
+  // KPIs and the executive dashboard. Deliberate nav addition, like the
+  // AI Workforce exception before it; all pre-existing items unchanged.
+  { links: [{ href: '/business-brain', label: 'Business Brain', ico: '◉' }] },
   {
     title: 'CRM & Sales',
     links: [

@@ -65,6 +65,16 @@ export class ToolRegistry {
         ]);
         return { leadsByStage: (leadsByStage as any[]).map((g) => ({ stage: g.stage, count: g._count._all })), overdueInvoices, bookingsToday, openConversations };
       },
+      // Sprint 1 (Business Brain): the goals this business is working toward.
+      list_goals: async (a) => {
+        const goals = await prisma.db.goal.findMany({
+          where: { status: 'ACTIVE', ...(a.department ? { department: String(a.department) } : {}) },
+          orderBy: [{ priority: 'desc' }, { dueAt: 'asc' }],
+          take: Math.min(Number(a.take ?? 10), 25),
+          select: { id: true, title: true, priority: true, progress: true, status: true, department: true, dueAt: true },
+        });
+        return goals.map((g) => ({ ...g, dueAt: g.dueAt ? g.dueAt.toISOString().slice(0, 10) : null }));
+      },
       list_leads: async (a) => {
         const leads = await prisma.db.lead.findMany({
           where: a.stage ? { stage: a.stage } : undefined,

@@ -14,6 +14,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/onboarding': 'Getting Started',
   '/dashboard': 'Dashboard',
   '/ai-workforce': 'AI Workforce',
+  '/business-brain': 'Business Brain',
   '/crm': 'CRM',
   '/sales': 'Sales',
   '/conversations': 'Conversations',

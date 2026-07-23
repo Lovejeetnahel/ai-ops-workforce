@@ -48,6 +48,7 @@ const TOOL_ARG_SCHEMAS: Record<string, { required: string[]; optional?: string[]
   vision: { required: ['url'], optional: ['hint'] },
   business_snapshot: { required: [] },
   list_leads: { required: [], optional: ['stage', 'take'] },
+  list_goals: { required: [], optional: ['department', 'take'] },
   list_overdue_invoices: { required: [], optional: ['olderThanDays'] },
 };
 

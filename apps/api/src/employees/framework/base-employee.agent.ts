@@ -79,6 +79,8 @@ export abstract class BaseEmployeeAgent {
       query: prompt.slice(0, 400),
       role: 'STAFF',
       subject: contactId ? { type: MemorySubject.CUSTOMER, id: contactId } : undefined,
+      // Sprint 1: ground every employee in the goals it supports.
+      agent: { key: this.definition.key, department: this.definition.department },
     });
     return this.kit.complete(system, prompt, 400, { agentKey: this.definition.key });
   }
