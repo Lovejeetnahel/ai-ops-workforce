@@ -15,7 +15,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'deploy | smoke | rollback | cleanup-test-tenants | logs'
+        description: 'deploy | smoke | rollback | cleanup-test-tenants | logs | voyage-report'
         required: true
         default: 'deploy'
       search:
@@ -156,6 +156,19 @@ jobs:
               psql_t "DELETE FROM \"Tenant\" WHERE name LIKE 'ZZ RELEASE VERIFY%';" || true
               LEFT=$(psql_t "SELECT count(*) FROM \"Tenant\" WHERE name LIKE 'ZZ RELEASE VERIFY%';")
               echo "SMOKE_CLEANUP_DONE remaining=${LEFT}"
+              ;;
+            voyage-report)
+              # READ-ONLY: which embedding model/dims production actually uses
+              # (model names are not secrets; key values are never read) plus
+              # aggregate counts for usage estimation. Changes nothing.
+              grep -q '^EMBEDDING_MODEL=' .env && echo "EMBEDDING_MODEL=$(grep '^EMBEDDING_MODEL=' .env | head -1 | cut -d= -f2)" || echo "EMBEDDING_MODEL not set → code default: voyage-3"
+              grep -q '^EMBEDDING_DIMS=' .env && echo "EMBEDDING_DIMS=$(grep '^EMBEDDING_DIMS=' .env | head -1 | cut -d= -f2)" || echo "EMBEDDING_DIMS not set → code default: 1024"
+              grep -q '^VOYAGE_API_KEY=..*' .env && echo "VOYAGE_API_KEY: present (value not read)" || echo "VOYAGE_API_KEY: not set"
+              echo "tenants=$(psql_t 'SELECT count(*) FROM "Tenant";')"
+              echo "agent_tasks_30d=$(psql_t "SELECT count(*) FROM \"AgentTask\" WHERE \"createdAt\" > now() - interval '30 days';")"
+              echo "knowledge_chunks_total=$(psql_t 'SELECT count(*) FROM "KnowledgeChunk";')"
+              echo "entity_memories_total=$(psql_t 'SELECT count(*) FROM "EntityMemory";')"
+              echo "knowledge_docs_total=$(psql_t 'SELECT count(*) FROM "KnowledgeDoc";')"
               ;;
             logs)
               # Read-only diagnostics: pull API log lines around a pattern
