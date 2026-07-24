@@ -166,10 +166,11 @@ Branch `sprint/1-business-brain` (from `main` post-Release-3), founder-directed 
 
 **This is separate from the Phase numbering in Section 3** — Phase 2 (the authenticated product) is deployed and unaffected by this work. Website releases only touch the public marketing site (`apps/web/app/(public)/*`) plus one small, isolated, additive backend module for the Contact form.
 
-### Website Release 1 — Trust, Accuracy and Consistency: ✅ APPROVED IN PRINCIPLE, FINAL REVIEW DONE (2026-07-14)
+### Website Release 1 — Trust, Accuracy and Consistency: ✅ MERGED TO MAIN (2026-07-14)
 
-- **Branch:** `website/release-1-trust-accuracy` (from latest `main` post-Phase-2-deploy).
-- **PR:** [#3](https://github.com/Lovejeetnahel/ai-ops-workforce/pull/3) — `Public Website Release 1 — Trust, Accuracy and Consistency`. Merge status/final commit: see the top of this section once merged (this file is updated again immediately after merge in the same session).
+- **Branch:** `website/release-1-trust-accuracy` (from latest `main` post-Phase-2-deploy), merged via PR #3.
+- **PR:** [#3](https://github.com/Lovejeetnahel/ai-ops-workforce/pull/3) — `Public Website Release 1 — Trust, Accuracy and Consistency`. Merged (normal merge commit, no force-push, no history rewrite).
+- **Final merged commit on `main`:** `dcecf18169a7271ae51c10175e31ad14762acf89`
 - **Deployment:** NOT deployed to production yet — merging `main` does not auto-deploy; deployment to the Hetzner VPS is a separate, explicit step (see the Termius block issued alongside the merge).
 
 **Files changed:**
