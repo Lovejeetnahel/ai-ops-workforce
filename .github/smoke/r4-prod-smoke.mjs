@@ -69,7 +69,8 @@ ok('knowledge ingestion works (no 500 / no Voyage 401)', mem.status === 201 || m
 // Semantic retrieval with DIFFERENT wording — only works if chunks were
 // embedded and cosine search runs against real vectors.
 const search = await req('POST', '/brain/search', { token: A, body: { query: 'how long is the guarantee on heating repairs' } });
-ok('semantic retrieval with different wording', search.status === 200 && (search.json ?? []).some((h) => /ninety day|workmanship/i.test(h.content ?? '')), `status=${search.status} hits=${(search.json ?? []).length}`);
+// Nest returns 201 for POST handlers by default — both are success here.
+ok('semantic retrieval with different wording', (search.status === 200 || search.status === 201) && (search.json ?? []).some((h) => /ninety day|workmanship/i.test(h.content ?? '')), `status=${search.status} hits=${(search.json ?? []).length}`);
 
 // Business Memory: record + recall for a subject.
 const memRec = await req('POST', '/brain/memory', { token: A, body: { subjectType: 'CUSTOMER', subjectId: 'zz-verify-cust', kind: 'PREFERENCE', content: 'Prefers early morning appointments before 9am.' } });
