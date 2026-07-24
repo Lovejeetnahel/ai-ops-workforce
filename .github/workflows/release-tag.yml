@@ -1,0 +1,71 @@
+name: Push Release Tag
+
+# Manual-only: creates and pushes ONE annotated release tag after verifying
+# the target commit exists and the tag is absent remotely. Never overwrites,
+# moves or deletes an existing tag — a mismatch aborts loudly instead.
+# Uses the built-in GITHUB_TOKEN via `permissions: contents: write`.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag name (e.g. release-4-business-brain)'
+        required: true
+      commit:
+        description: 'FULL commit SHA the tag must point to'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout (full history + tags)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify, create and push the annotated tag
+        env:
+          TAG: ${{ inputs.tag }}
+          COMMIT: ${{ inputs.commit }}
+        run: |
+          set -euo pipefail
+          git fetch --tags origin
+
+          # 1. Full 40-char SHA only — no ambiguous short hashes.
+          [[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo "ABORT: commit must be a full 40-char SHA"; exit 1; }
+
+          # 2. The commit must exist in this repository.
+          git cat-file -e "${COMMIT}^{commit}" || { echo "ABORT: commit not found in repository"; exit 1; }
+          echo "Target commit exists: $(git log -1 --format='%H %s' "$COMMIT")"
+
+          # 3. Never touch an existing remote tag.
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            git fetch origin "refs/tags/${TAG}:refs/tags/__existing" >/dev/null 2>&1 || true
+            POINTS=$(git rev-parse "__existing^{commit}" 2>/dev/null || true)
+            if [ "$POINTS" = "$COMMIT" ]; then
+              echo "TAG_ALREADY_CORRECT ${TAG} -> ${POINTS} — no change made"
+              exit 0
+            fi
+            echo "TAG_MISMATCH ${TAG} exists remotely at '${POINTS}', expected '${COMMIT}' — NOT modifying it"
+            exit 1
+          fi
+
+          # 4. Create the annotated tag and push ONLY that ref.
+          git config user.name "sofilic-release"
+          git config user.email "release@sofilic.com"
+          git tag -a "$TAG" "$COMMIT" -m "SOFILIC Release 4 — Business Brain" \
+            -m "Production verified on 2026-07-24." \
+            -m "Includes Company Profile, Goals, KPIs, Executive Dashboard, Business Memory, AI Workforce grounding, and Voyage embeddings migration."
+          git push origin "refs/tags/${TAG}"
+
+          # 5. Verify against the REMOTE that the tag resolves to the commit.
+          git fetch origin "refs/tags/${TAG}:refs/tags/__verify" --force
+          RESOLVED=$(git rev-parse "__verify^{commit}")
+          echo "REMOTE_TAG_VERIFIED ${TAG} -> ${RESOLVED}"
+          [ "$RESOLVED" = "$COMMIT" ] || { echo "ABORT: remote tag does not resolve to target commit"; exit 1; }
+          echo "TAG_PUSHED_OK"
