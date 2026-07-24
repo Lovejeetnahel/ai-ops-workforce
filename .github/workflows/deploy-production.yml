@@ -15,7 +15,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'deploy | smoke | rollback | cleanup-test-tenants | logs | voyage-report'
+        description: 'deploy | smoke | rollback | cleanup-test-tenants | logs | voyage-report | voyage-migrate'
         required: true
         default: 'deploy'
       search:
@@ -151,11 +151,55 @@ jobs:
               psql_t "SELECT count(*) FROM \"Tenant\" WHERE name LIKE 'ZZ RELEASE VERIFY%';"
               ;;
             smoke)
-              # Runs AFTER the runner-side authenticated smoke step: remove
-              # the 'ZZ RELEASE VERIFY%' tenants it created (cascade delete).
+              # Runs AFTER the runner-side authenticated smoke step. First,
+              # while the smoke tenant's vectors still exist, verify stored
+              # embedding width in the DB; then remove the 'ZZ RELEASE
+              # VERIFY%' tenants (cascade delete takes docs/chunks/memories).
+              echo "EMBED_DIMS_IN_DB=$(psql_t 'SELECT COALESCE((SELECT DISTINCT vector_dims(embedding) FROM "KnowledgeChunk" WHERE embedding IS NOT NULL LIMIT 1), 0);')"
+              echo "MEMORY_DIMS_IN_DB=$(psql_t 'SELECT COALESCE((SELECT DISTINCT vector_dims(embedding) FROM "EntityMemory" WHERE embedding IS NOT NULL LIMIT 1), 0);')"
               psql_t "DELETE FROM \"Tenant\" WHERE name LIKE 'ZZ RELEASE VERIFY%';" || true
               LEFT=$(psql_t "SELECT count(*) FROM \"Tenant\" WHERE name LIKE 'ZZ RELEASE VERIFY%';")
               echo "SMOKE_CLEANUP_DONE remaining=${LEFT}"
+              ;;
+            voyage-migrate)
+              # Founder-approved embeddings migration: rotate VOYAGE_API_KEY
+              # (received via stdin only — never argv, never logged, masked by
+              # Actions anyway) and switch to voyage-4-lite @ 1024 dims.
+              [ -n "${VOYAGE_NEW_KEY:-}" ] || { echo "no key received on stdin"; exit 1; }
+              # ── Preflight: abort if ANY vectors exist (would mix voyage-3
+              # and voyage-4 spaces) or the column/index shape is unexpected.
+              CH=$(psql_t 'SELECT count(*) FROM "KnowledgeChunk";')
+              EM=$(psql_t 'SELECT count(*) FROM "EntityMemory";')
+              KC_TYPE=$(psql_t "SELECT format_type(atttypid, atttypmod) FROM pg_attribute WHERE attrelid='\"KnowledgeChunk\"'::regclass AND attname='embedding';")
+              EM_TYPE=$(psql_t "SELECT format_type(atttypid, atttypmod) FROM pg_attribute WHERE attrelid='\"EntityMemory\"'::regclass AND attname='embedding';")
+              HN=$(psql_t "SELECT count(*) FROM pg_indexes WHERE indexname LIKE '%hnsw%';")
+              echo "PREFLIGHT chunks=${CH} memories=${EM} kc_col=${KC_TYPE} em_col=${EM_TYPE} hnsw=${HN}"
+              if [ "$CH" != "0" ] || [ "$EM" != "0" ]; then
+                echo "PREFLIGHT_FAIL existing vectors found — STOPPING before model change (re-embedding plan required)"; exit 1
+              fi
+              if [ "$KC_TYPE" != "vector(1024)" ] || [ "$EM_TYPE" != "vector(1024)" ] || [ "$HN" != "2" ]; then
+                echo "PREFLIGHT_FAIL column/index shape unexpected — STOPPING"; exit 1
+              fi
+              # ── .env rewrite: replace exactly 3 vars, preserve all others,
+              # never echo values; timestamped 600-mode backup first.
+              cp .env ".env.backup-${STAMP}" && chmod 600 ".env.backup-${STAMP}"
+              grep -vE '^(VOYAGE_API_KEY|EMBEDDING_MODEL|EMBEDDING_DIMS)=' .env > .env.new
+              printf 'VOYAGE_API_KEY=%s\nEMBEDDING_MODEL=voyage-4-lite\nEMBEDDING_DIMS=1024\n' "$VOYAGE_NEW_KEY" >> .env.new
+              chmod 600 .env.new && mv .env.new .env
+              echo "ENV_UPDATED other_vars_preserved=$(grep -c '=' .env) backup=.env.backup-${STAMP} (values not shown)"
+              # ── Restart ONLY the services that read the key (api + worker).
+              docker compose up -d --force-recreate api worker
+              echo "== waiting 25s"; sleep 25
+              if ! curl -fsS http://127.0.0.1:4000/api/health | grep -q sofilic-api; then
+                echo "API_UNHEALTHY — restoring .env backup and recreating"
+                cp ".env.backup-${STAMP}" .env
+                docker compose up -d --force-recreate api worker
+                exit 1
+              fi
+              # ── Sanitized in-container auth probe: prints STATUS/model/dims
+              # only. The key never appears in output.
+              docker compose exec -T api node -e 'fetch("https://api.voyageai.com/v1/embeddings",{method:"POST",headers:{Authorization:"Bearer "+process.env.VOYAGE_API_KEY,"Content-Type":"application/json"},body:JSON.stringify({input:["sofilic auth probe"],model:process.env.EMBEDDING_MODEL,input_type:"query",output_dimension:1024})}).then(async r=>{if(r.ok){const d=await r.json();console.log("VOYAGE_AUTH_STATUS="+r.status+" model="+d.model+" dims="+(d.data&&d.data[0]?d.data[0].embedding.length:"?"))}else{console.log("VOYAGE_AUTH_STATUS="+r.status)}}).catch(e=>console.log("VOYAGE_AUTH_ERROR="+String(e&&e.message).slice(0,80)))'
+              echo "MIGRATE_DONE model=voyage-4-lite dims=1024"
               ;;
             voyage-report)
               # READ-ONLY: which embedding model/dims production actually uses
@@ -198,10 +242,24 @@ jobs:
           HOST: ${{ secrets.PROD_SSH_HOST }}
           USER: ${{ secrets.PROD_SSH_USER }}
           PROD_SSH_PASSWORD: ${{ secrets.PROD_SSH_PASSWORD }}
+          VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
+          MODE_INPUT: ${{ inputs.mode }}
         run: |
           set -euo pipefail
           SSH_OPTS="-o StrictHostKeyChecking=accept-new -o ServerAliveInterval=30 -o ConnectTimeout=15"
-          if [ "$AUTH_MODE" = "key" ]; then
+          # voyage-migrate: the secret travels as the FIRST LINE of stdin,
+          # consumed by `read` on the far side — never argv, never a file,
+          # never printed (and Actions masks it in any output regardless).
+          if [ "$MODE_INPUT" = "voyage-migrate" ]; then
+            [ -n "${VOYAGE_API_KEY:-}" ] || { echo "VOYAGE_API_KEY secret is not set" >&2; exit 1; }
+            REMOTE_CMD='IFS= read -r VOYAGE_NEW_KEY; export VOYAGE_NEW_KEY; bash -s'
+            if [ "$AUTH_MODE" = "key" ]; then
+              { printf '%s\n' "$VOYAGE_API_KEY"; cat remote.sh; } | ssh $SSH_OPTS -i ~/.ssh/prod_key "$USER@$HOST" "$REMOTE_CMD"
+            else
+              export SSHPASS="$PROD_SSH_PASSWORD"
+              { printf '%s\n' "$VOYAGE_API_KEY"; cat remote.sh; } | sshpass -e ssh $SSH_OPTS "$USER@$HOST" "$REMOTE_CMD"
+            fi
+          elif [ "$AUTH_MODE" = "key" ]; then
             ssh $SSH_OPTS -i ~/.ssh/prod_key "$USER@$HOST" 'bash -s' < remote.sh
           else
             # sshpass -e reads the password from SSHPASS (env, not argv).

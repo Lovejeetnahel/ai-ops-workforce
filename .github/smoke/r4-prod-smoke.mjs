@@ -57,17 +57,31 @@ ok('metric KPI computes real value (fresh tenant → 0, never fabricated)', kv?.
 const exec = await req('GET', '/business-brain/executive', { token: A });
 ok('executive dashboard live', exec.status === 200 && typeof exec.json.healthScore === 'number');
 ok('executive shows the verify goal', exec.json.goals.active.some((g) => g.title === 'ZZ verify goal'));
-const mem = await req('POST', '/brain/knowledge', { token: A, body: { type: 'POLICY', title: 'ZZ verify policy', content: 'verification entry' } });
-if ((mem.status === 500) && mem.json?.correlationId) {
-  // Known environment condition (not release code): the production
-  // embeddings key is invalid, so knowledge ingest 500s with a correlation
-  // id (diagnosed: Voyage 401 'Provided API key is invalid'). Surfaced as a
-  // loud warning for the founder to rotate VOYAGE_API_KEY — reads, goals,
-  // KPIs and structured agent grounding are unaffected.
-  console.log(`  WARN business memory ingest blocked by ENVIRONMENT (embeddings key invalid) — correlationId=${mem.json.correlationId}. Rotate VOYAGE_API_KEY in /opt/aiow/.env.`);
-} else {
-  ok('business memory (existing Brain) live', mem.status === 201 || mem.status === 200, `status=${mem.status} body=${JSON.stringify(mem.json)?.slice(0, 200)}`);
-}
+console.log('— Voyage embeddings + RAG (voyage-4-lite migration) —');
+// Real ingest through the live embeddings provider — the definitive test
+// that the rotated key authenticates (was Voyage 401 → 500 before).
+const mem = await req('POST', '/brain/knowledge', {
+  token: A,
+  body: { type: 'POLICY', title: 'ZZ verify warranty policy', content: 'All furnace repairs include a ninety day workmanship warranty covering parts and labour.' },
+});
+ok('knowledge ingestion works (no 500 / no Voyage 401)', mem.status === 201 || mem.status === 200, `status=${mem.status} body=${JSON.stringify(mem.json)?.slice(0, 200)}`);
+
+// Semantic retrieval with DIFFERENT wording — only works if chunks were
+// embedded and cosine search runs against real vectors.
+const search = await req('POST', '/brain/search', { token: A, body: { query: 'how long is the guarantee on heating repairs' } });
+ok('semantic retrieval with different wording', search.status === 200 && (search.json ?? []).some((h) => /ninety day|workmanship/i.test(h.content ?? '')), `status=${search.status} hits=${(search.json ?? []).length}`);
+
+// Business Memory: record + recall for a subject.
+const memRec = await req('POST', '/brain/memory', { token: A, body: { subjectType: 'CUSTOMER', subjectId: 'zz-verify-cust', kind: 'PREFERENCE', content: 'Prefers early morning appointments before 9am.' } });
+ok('business memory record (embedded)', memRec.status === 201 || memRec.status === 200, String(memRec.status));
+const recall = await req('GET', '/brain/memory/CUSTOMER/zz-verify-cust', { token: A });
+ok('business memory recall', recall.status === 200 && JSON.stringify(recall.json).includes('morning'), String(recall.status));
+
+// AI employee grounding: the composed agent context must now carry the
+// ingested knowledge (RAG) alongside the structured company facts.
+const ctxRes = await fetch(`${API}/brain/context?q=${encodeURIComponent('what warranty do we offer on repairs')}`, { headers: { authorization: `Bearer ${A}` } });
+const ctxText = await ctxRes.text();
+ok('AI employee grounding includes ingested knowledge', /ninety day|workmanship/i.test(ctxText), ctxText.slice(0, 120));
 
 console.log('— AI Workforce (Release 3/Phase 3 intact) —');
 const roster = await req('GET', '/employees', { token: A });

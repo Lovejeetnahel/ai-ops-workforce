@@ -4,8 +4,9 @@ import { EmbeddingPort } from '../ports';
 
 /**
  * Voyage AI embedding adapter (Anthropic's recommended embeddings) for the
- * Business Brain. `voyage-3` returns 1024-dim vectors, matching the pgvector
- * `vector(1024)` columns.
+ * Business Brain. The model comes from EMBEDDING_MODEL (voyage-4-lite in
+ * production); `output_dimension` is sent EXPLICITLY so vectors always match
+ * the pgvector `vector(1024)` columns even if a model's default changes.
  *
  * When no VOYAGE_API_KEY is set it falls back to a DETERMINISTIC local stub so
  * dev/CI run fully offline: a hashed bag-of-words projected into 1024 dims and
@@ -15,7 +16,7 @@ import { EmbeddingPort } from '../ports';
 export class VoyageAdapter implements EmbeddingPort {
   private readonly logger = new Logger(VoyageAdapter.name);
   readonly dimensions = Number(process.env.EMBEDDING_DIMS ?? 1024);
-  private readonly model = process.env.EMBEDDING_MODEL ?? 'voyage-3';
+  private readonly model = process.env.EMBEDDING_MODEL ?? 'voyage-4-lite';
 
   constructor(private readonly apiKey?: string) {}
 
@@ -26,7 +27,9 @@ export class VoyageAdapter implements EmbeddingPort {
     const res = await fetch('https://api.voyageai.com/v1/embeddings', {
       method: 'POST',
       headers: { Authorization: `Bearer ${this.apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ input: texts, model: this.model, input_type: kind }),
+      // output_dimension pinned to the DB column width — never rely on the
+      // provider's per-model default (voyage-4 family defaults vary).
+      body: JSON.stringify({ input: texts, model: this.model, input_type: kind, output_dimension: this.dimensions }),
     });
     if (!res.ok) throw new Error(`Voyage ${res.status}: ${await res.text()}`);
     const data: any = await res.json();
