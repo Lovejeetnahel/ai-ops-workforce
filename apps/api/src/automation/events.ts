@@ -70,6 +70,18 @@ export const DomainEvents = {
   AGENT_DECISION_MADE: 'agent.decision_made',
   AGENT_INSTALLED: 'agent.installed',
 
+  // Commercial operating layer (Sprint 2)
+  CONVERSATION_ASSIGNED: 'conversation.assigned',
+  CONVERSATION_CLOSED: 'conversation.closed',
+  REVIEW_RECEIVED: 'review.received',
+  REVIEW_REQUEST_SENT: 'review.request_sent',
+  REVIEW_RESPONDED: 'review.responded',
+  CAMPAIGN_STARTED: 'campaign.started',
+  CAMPAIGN_COMPLETED: 'campaign.completed',
+  SOCIAL_POST_PUBLISHED: 'social.post_published',
+  GOAL_ACHIEVED: 'goal.achieved',
+  KPI_VALUE_RECORDED: 'kpi.value_recorded',
+
   // Enterprise intelligence & platform (Phase 7)
   PREDICTION_CREATED: 'prediction.created',
   REPORT_GENERATED: 'report.generated',

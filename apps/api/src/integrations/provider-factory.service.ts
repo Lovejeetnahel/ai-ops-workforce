@@ -78,6 +78,34 @@ export class ProviderFactory {
     return new AnthropicAdapter(process.env.ANTHROPIC_API_KEY);
   }
 
+  /**
+   * Sprint 2 honesty gate: which outbound channels are REALLY configured for
+   * this tenant (tenant integration row, or platform env fallback). Send flows
+   * (campaigns, review requests, inbox replies) consult this and refuse with a
+   * clear "setup required" error instead of letting the [stub] adapters
+   * silently pretend a message went out. Never returns secret values.
+   */
+  async commsStatus(tenantId: string): Promise<{
+    sms: { configured: boolean; source: 'tenant' | 'platform' | null };
+    email: { configured: boolean; source: 'tenant' | 'platform' | null };
+    voice: { configured: boolean; source: 'tenant' | 'platform' | null };
+    stripe: { configured: boolean; source: 'tenant' | 'platform' | null };
+  }> {
+    const sourceOf = async (provider: string, envOk: boolean) => {
+      const c = await this.creds(tenantId, provider);
+      if (Object.keys(c).length > 0) return { configured: true, source: 'tenant' as const };
+      if (envOk) return { configured: true, source: 'platform' as const };
+      return { configured: false, source: null };
+    };
+    const [sms, email, voice, stripe] = await Promise.all([
+      sourceOf('TWILIO', !!process.env.TWILIO_ACCOUNT_SID),
+      sourceOf('SENDGRID', !!process.env.SENDGRID_API_KEY),
+      sourceOf('VAPI', !!process.env.VAPI_API_KEY),
+      sourceOf('STRIPE', !!process.env.STRIPE_SECRET_KEY),
+    ]);
+    return { sms, email, voice, stripe };
+  }
+
   /** Embeddings are platform-level (Business Brain). Stub mode if unkeyed. */
   embeddings(): EmbeddingPort {
     return new VoyageAdapter(process.env.VOYAGE_API_KEY);

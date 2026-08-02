@@ -49,9 +49,34 @@ export class LeadsController {
 
   @Patch(':id/stage')
   @Roles('STAFF')
-  move(@Param('id') id: string, @Body('stage') stage: string) {
+  move(
+    @Param('id') id: string,
+    @Body('stage') stage: string,
+    @Body('lostReason') lostReason?: string,
+    @Body('actualValue') actualValue?: number,
+  ) {
     if (!VALID_LEAD_STAGES.includes(stage as LeadStage))
       throw new BadRequestException(`Invalid stage: ${stage}. Valid stages: ${VALID_LEAD_STAGES.join(', ')}`);
-    return this.leads.moveStage(id, stage);
+    return this.leads.moveStage(id, stage, { lostReason, actualValue });
+  }
+
+  /** Sprint 2: full opportunity detail (360° context). */
+  @Get(':id')
+  @Roles('STAFF')
+  async detail(@Param('id') id: string) {
+    const lead = await this.leads.detail(id);
+    if (!lead) throw new BadRequestException('Lead not found');
+    return lead;
+  }
+
+  /** Sprint 2: opportunity fields — value, outcome, ownership, attribution. */
+  @Patch(':id')
+  @Roles('STAFF')
+  patch(@Param('id') id: string, @Body() body: Record<string, unknown>) {
+    const allowed = ['serviceType', 'urgency', 'location', 'source', 'estimatedValue', 'actualValue', 'lostReason', 'assignedToId', 'campaignId'];
+    const input: any = {};
+    for (const k of allowed) if (body[k] !== undefined) input[k] = body[k];
+    if (Object.keys(input).length === 0) throw new BadRequestException(`Nothing to update. Allowed: ${allowed.join(', ')}`);
+    return this.leads.patch(id, input);
   }
 }

@@ -79,12 +79,21 @@ export default function Dashboard() {
   const [exec, setExec] = useState<any>(null);
   const [saved, setSaved] = useState<any[] | null>(null);
   const [showOnboardingBanner, setShowOnboardingBanner] = useState(false);
+  // Sprint 2: the industry preset decides which widgets render and in what order.
+  const [widgets, setWidgets] = useState<string[] | null>(null);
+  const [brief, setBrief] = useState<any>(null);
+  const [bb, setBb] = useState<any>(null); // Business Brain executive (goals/KPIs/insights)
+
+  const widgetOn = (key: string) => widgets === null || widgets.includes(key);
 
   useEffect(() => {
     try {
       const u = JSON.parse(window.localStorage.getItem('aiow_user') ?? 'null');
       if (u?.tenant?.name) setBusinessName(u.tenant.name);
     } catch {}
+    api.moduleConfig().then((cfg) => setWidgets(cfg?.preset?.dashboardWidgets ?? null)).catch(() => setWidgets(null));
+    api.briefing().then(setBrief).catch(() => setBrief(false));
+    api.executiveDashboard().then(setBb).catch(() => setBb(false));
     api.overview().then(setOv).catch(() => setOv(false));
     api.currentTenant().then((t) => {
       // Only tenants that actually went through this release's signup flow
@@ -112,6 +121,13 @@ export default function Dashboard() {
     if (a.overdueInvoices > 0) items.push({ label: `${a.overdueInvoices} invoice${a.overdueInvoices > 1 ? 's' : ''} overdue (7+ days unpaid)`, count: a.overdueInvoices, href: '/payments', sev: 'err' });
     if (a.pendingApprovals > 0) items.push({ label: `${a.pendingApprovals} approval${a.pendingApprovals > 1 ? 's' : ''} pending your review`, count: a.pendingApprovals, href: '/apps/field-operations', sev: 'warn' });
     if (a.overdueTasks > 0) items.push({ label: `${a.overdueTasks} task${a.overdueTasks > 1 ? 's' : ''} past due`, count: a.overdueTasks, href: '/crm', sev: 'warn' });
+    // Sprint 2 attention feeds — all real, all linkable.
+    if (a.unreadConversations > 0) items.push({ label: `${a.unreadConversations} unread conversation${a.unreadConversations > 1 ? 's' : ''}`, count: a.unreadConversations, href: '/conversations', sev: 'warn' });
+    if (a.agentApprovalsPending > 0) items.push({ label: `${a.agentApprovalsPending} AI action${a.agentApprovalsPending > 1 ? 's' : ''} waiting for your approval`, count: a.agentApprovalsPending, href: '/ai-workforce', sev: 'warn' });
+    if (a.reviewsNeedingResponse > 0) items.push({ label: `${a.reviewsNeedingResponse} review${a.reviewsNeedingResponse > 1 ? 's' : ''} awaiting a response`, count: a.reviewsNeedingResponse, href: '/marketing', sev: 'warn' });
+    if (a.socialPendingApproval > 0) items.push({ label: `${a.socialPendingApproval} social post${a.socialPendingApproval > 1 ? 's' : ''} pending approval`, count: a.socialPendingApproval, href: '/social', sev: 'warn' });
+    if (a.automationFailures7d > 0) items.push({ label: `${a.automationFailures7d} automation failure${a.automationFailures7d > 1 ? 's' : ''} this week`, count: a.automationFailures7d, href: '/automation', sev: 'err' });
+    if (a.failedPayments30d > 0) items.push({ label: `${a.failedPayments30d} failed payment${a.failedPayments30d > 1 ? 's' : ''} (30d)`, count: a.failedPayments30d, href: '/payments', sev: 'err' });
     return items;
   }, [ov]);
 
@@ -144,6 +160,14 @@ export default function Dashboard() {
 
       {tab === 'overview' && (
         <>
+          {/* Morning Brief — real intelligence briefing, preset-gated */}
+          {widgetOn('morningBrief') && brief && brief !== false && typeof brief.briefing === 'string' && brief.briefing.length > 0 && (
+            <div className="panel glow" style={{ marginBottom: 16 }}>
+              <h3 style={{ marginTop: 0 }}>☀ Morning brief <span className="muted" style={{ fontSize: 11, fontWeight: 400 }}>{brief.date}</span></h3>
+              <p style={{ margin: '4px 0', whiteSpace: 'pre-wrap', fontSize: 13.5 }}>{brief.briefing}</p>
+            </div>
+          )}
+
           {ov === null && (
             <>
               <div className="grid-kpi" style={{ marginBottom: 20 }}>
@@ -271,6 +295,86 @@ export default function Dashboard() {
                 </div>
               </div>
             </>
+          )}
+
+          {/* Sprint 2 snapshots — preset-gated, real data, honest zeros */}
+          {ov && (
+            <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', marginBottom: 16 }}>
+              {widgetOn('reviews') && (
+                <Link href="/marketing" className="panel" style={{ textDecoration: 'none', color: 'var(--text)' }}>
+                  <div className="muted">Reviews</div>
+                  <div className="kpi">{ov.reviews.averageRating ?? '—'}{ov.reviews.averageRating ? '★' : ''}</div>
+                  <div className="kpi-delta muted">{ov.reviews.total} recorded · {ov.reviews.needsResponse} need a response</div>
+                </Link>
+              )}
+              {widgetOn('conversations') && (
+                <Link href="/conversations" className="panel" style={{ textDecoration: 'none', color: 'var(--text)' }}>
+                  <div className="muted">Inbox</div>
+                  <div className="kpi">{ov.attention.unreadConversations}</div>
+                  <div className="kpi-delta muted">unread · {ov.attention.waitingConversations} waiting on you</div>
+                </Link>
+              )}
+              {widgetOn('kpis') && (
+                <Link href="/marketing" className="panel" style={{ textDecoration: 'none', color: 'var(--text)' }}>
+                  <div className="muted">Marketing</div>
+                  <div className="kpi">{ov.marketing.activeCampaigns}</div>
+                  <div className="kpi-delta muted">active campaigns · {ov.marketing.recipientsSent30d} messages sent (30d)</div>
+                </Link>
+              )}
+              {widgetOn('aiWorkforce') && (
+                <Link href="/ai-workforce" className="panel" style={{ textDecoration: 'none', color: 'var(--text)' }}>
+                  <div className="muted">AI Workforce</div>
+                  <div className="kpi">{ov.kpis.aiTasksThisWeek}</div>
+                  <div className="kpi-delta muted">tasks this week · {ov.attention.agentApprovalsPending} awaiting approval</div>
+                </Link>
+              )}
+              {widgetOn('automationHealth') && (
+                <Link href="/automation" className="panel" style={{ textDecoration: 'none', color: 'var(--text)' }}>
+                  <div className="muted">Automation</div>
+                  <div className="kpi">{ov.kpis.automationRulesEnabled}</div>
+                  <div className="kpi-delta muted">rules active · {ov.attention.automationFailures7d} failures (7d)</div>
+                </Link>
+              )}
+            </div>
+          )}
+
+          {/* AI insights + goals — from the Business Brain executive engine */}
+          {widgetOn('aiInsights') && bb && bb !== false && (bb.risks?.length > 0 || bb.recommendations?.length > 0 || bb.goals?.active?.length > 0) && (
+            <div className="grid-2" style={{ marginBottom: 16 }}>
+              <div className="panel">
+                <h3>AI insights</h3>
+                {(bb.risks ?? []).slice(0, 3).map((r: any, i: number) => (
+                  <div className="agent-row" key={`r-${i}`}><span className="chip err">Risk</span>
+                    <span style={{ flex: 1 }}>{typeof r === 'string' ? r : r.title}{r.detail && <span className="muted" style={{ display: 'block', fontSize: 11 }}>{r.detail}</span>}</span></div>
+                ))}
+                {(bb.recommendations ?? []).slice(0, 3).map((r: any, i: number) => (
+                  <div className="agent-row" key={`rec-${i}`}><span className="chip ok">Next</span>
+                    <span style={{ flex: 1 }}>{typeof r === 'string' ? r : r.title ?? r.text}{typeof r !== 'string' && r.detail ? <span className="muted" style={{ display: 'block', fontSize: 11 }}>{r.detail}</span> : null}</span></div>
+                ))}
+                {(bb.risks ?? []).length === 0 && (bb.recommendations ?? []).length === 0 && (
+                  <p className="muted" style={{ fontSize: 13 }}>Insights appear as your business data accrues — nothing is invented.</p>
+                )}
+              </div>
+              <div className="panel">
+                <h3 style={{ display: 'flex', justifyContent: 'space-between' }}>Goals <Link href="/business-brain" className="muted" style={{ fontSize: 12 }}>Manage →</Link></h3>
+                {(bb.goals?.active ?? []).length === 0 ? (
+                  <div className="empty-state" style={{ padding: '24px 12px' }}>
+                    <div className="e-ico">◉</div><h4>No active goals</h4><p>Set a goal in the Business Brain — your AI employees work toward it.</p>
+                  </div>
+                ) : (
+                  (bb.goals.active ?? []).slice(0, 4).map((g: any) => (
+                    <div key={g.id} style={{ marginBottom: 10 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                        <span>{g.title}</span><span className="muted">{g.progress}%</span>
+                      </div>
+                      <div style={{ height: 6, background: 'rgba(128,128,128,0.2)', borderRadius: 3, marginTop: 4 }}>
+                        <div style={{ height: 6, width: `${g.progress}%`, background: '#ffc629', borderRadius: 3 }} />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           )}
 
           <div className="panel">

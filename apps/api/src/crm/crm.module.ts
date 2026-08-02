@@ -3,6 +3,7 @@ import { ActivitiesService } from './activities/activities.service';
 import { ActivitiesController } from './activities/activities.controller';
 import { CompaniesService } from './companies/companies.service';
 import { CompaniesController } from './companies/companies.controller';
+import { ContactsController } from './contacts/contacts.controller';
 import { ActivityProjector } from './activity-projector.service';
 
 /**
@@ -11,7 +12,7 @@ import { ActivityProjector } from './activity-projector.service';
  * global modules (Prisma, EventBus, Brain), so it adds no coupling and no cycles.
  */
 @Module({
-  controllers: [ActivitiesController, CompaniesController],
+  controllers: [ActivitiesController, CompaniesController, ContactsController],
   providers: [ActivitiesService, CompaniesService, ActivityProjector],
   exports: [ActivitiesService, CompaniesService],
 })

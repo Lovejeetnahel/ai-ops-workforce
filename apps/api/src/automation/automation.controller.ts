@@ -1,8 +1,11 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { getModuleConfig } from '@aiow/config';
 import { RolesGuard } from '../common/rbac/roles.guard';
 import { Roles } from '../common/rbac/roles.decorator';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { tenantContext } from '../common/tenancy/tenant-context';
 import { AutomationService } from './automation.service';
+import { DomainEvents } from './events';
 
 /**
  * Owner/admin CRUD for automation rules. The visual "automation builder" in the
@@ -34,6 +37,60 @@ export class AutomationController {
         actions: body.actions ?? [],
         enabled: body.enabled ?? true,
       } as any,
+    });
+  }
+
+  /**
+   * Sprint 2: the trigger catalog for the rule builder — every domain event the
+   * engine can react to, straight from the canonical DomainEvents map.
+   */
+  @Get('events')
+  @Roles('ADMIN')
+  events() {
+    return Object.values(DomainEvents).sort();
+  }
+
+  /**
+   * Sprint 2: industry recipes — the module's seeded automation presets plus
+   * which are recommended by the tenant's preset. These are the tenant's OWN
+   * DB rules (tagged presetKey), so enabling one is just the existing PATCH.
+   */
+  @Get('recipes')
+  @Roles('ADMIN')
+  async recipes() {
+    const tenant = await this.prisma.tenant.findUniqueOrThrow({
+      where: { id: tenantContext.tenantId },
+      select: { industryModule: true, settings: true },
+    });
+    const presets = getModuleConfig(tenant.industryModule).automations;
+    const rules = await this.prisma.db.automationRule.findMany({ where: { presetKey: { not: null } } });
+    return presets.map((p) => {
+      const rule = rules.find((r) => r.presetKey === p.key);
+      return {
+        key: p.key,
+        name: p.name,
+        description: p.description,
+        triggerEvent: p.triggerEvent,
+        ruleId: rule?.id ?? null,
+        enabled: rule?.enabled ?? false,
+        seeded: !!rule,
+      };
+    });
+  }
+
+  /**
+   * Sprint 2: execution history — the EventLog is the engine's real run
+   * record (RECEIVED → PROCESSED/FAILED with the error preserved).
+   */
+  @Get('history')
+  @Roles('ADMIN')
+  history(@Query('status') status?: string, @Query('limit') limit?: string) {
+    const take = Math.max(1, Math.min(200, parseInt(limit ?? '100', 10) || 100));
+    return this.prisma.db.eventLog.findMany({
+      where: status ? { status: status as any } : undefined,
+      select: { id: true, name: true, source: true, status: true, error: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+      take,
     });
   }
 

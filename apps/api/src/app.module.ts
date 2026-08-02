@@ -19,6 +19,10 @@ import { LaunchModule } from './launch/launch.module';
 import { AuthModule } from './auth/auth.module';
 import { TenantsModule } from './tenants/tenants.module';
 import { LeadsModule } from './leads/leads.module';
+import { InboxModule } from './inbox/inbox.module';
+import { ReviewsModule } from './reviews/reviews.module';
+import { MarketingModule } from './marketing/marketing.module';
+import { SocialModule } from './social/social.module';
 import { PublicModule } from './public/public.module';
 import { HealthController } from './health.controller';
 
@@ -56,6 +60,10 @@ import { HealthController } from './health.controller';
     LaunchModule,
     TenantsModule,
     LeadsModule,
+    InboxModule,
+    ReviewsModule,
+    MarketingModule,
+    SocialModule,
     PublicModule,
   ],
   controllers: [HealthController],

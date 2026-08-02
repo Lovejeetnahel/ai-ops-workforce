@@ -2,6 +2,9 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { KpiDirection } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { AnalyticsService } from '../enterprise/analytics/analytics.service';
+import { EventBus } from '../automation/event-bus';
+import { DomainEvents } from '../automation/events';
+import { tenantContext } from '../common/tenancy/tenant-context';
 import { kpiAttainment, kpiHealth, kpiTrend } from './goal-math';
 
 /**
@@ -32,6 +35,7 @@ export class KpisService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly analytics: AnalyticsService,
+    private readonly bus: EventBus,
   ) {}
 
   /**
@@ -99,6 +103,12 @@ export class KpisService {
     }
     await this.prisma.db.kpi.update({ where: { id }, data: { currentValue: value } });
     await this.prisma.db.kpiSnapshot.create({ data: { kpiId: id, value } as any });
+    // Sprint 2: manual KPI observations are automation-visible domain events.
+    await this.bus.emit({
+      name: DomainEvents.KPI_VALUE_RECORDED,
+      tenantId: tenantContext.tenantId,
+      payload: { kpi: { id, name: kpi.name, value, targetValue: kpi.targetValue } },
+    });
     return this.get(id);
   }
 

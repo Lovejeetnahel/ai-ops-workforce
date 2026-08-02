@@ -10,6 +10,9 @@ export interface LedgerInput {
   actionType?: string;
   agent?: string;
   source?: string;
+  /** Sprint 2 closed-loop ROI: how confidently this entry traces to a cause. */
+  attribution?: 'DIRECT' | 'ASSISTED' | 'ESTIMATED' | 'UNATTRIBUTED' | 'UNKNOWN';
+  campaignId?: string;
 }
 
 /**
@@ -41,6 +44,13 @@ export class ValueLedgerService {
         actionType: input.actionType ?? null,
         agent: input.agent ?? null,
         source: input.source ?? null,
+        // Attribution honesty (Sprint 2): a decision-linked entry resolved a
+        // pre-declared expected signal (deterministic) → DIRECT; an agent's
+        // self-reported value is a labeled ESTIMATE; anything else must be
+        // stated by the caller or stays UNATTRIBUTED.
+        attribution:
+          input.attribution ?? (input.decisionId ? 'DIRECT' : input.agent ? 'ESTIMATED' : 'UNATTRIBUTED'),
+        campaignId: input.campaignId ?? null,
       } as any,
     });
   }

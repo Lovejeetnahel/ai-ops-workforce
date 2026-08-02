@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { EventBusModule } from '../automation/event-bus.module';
 import { EnterpriseModule } from '../enterprise/enterprise.module';
 import { BusinessBrainController } from './business-brain.controller';
 import { CompanyProfileService } from './company-profile.service';
@@ -15,7 +16,7 @@ import { ExecutiveService } from './executive.service';
  * BusinessBrainService.companyFacts().
  */
 @Module({
-  imports: [EnterpriseModule],
+  imports: [EnterpriseModule, EventBusModule],
   controllers: [BusinessBrainController],
   providers: [CompanyProfileService, GoalsService, KpisService, ExecutiveService],
   exports: [GoalsService],

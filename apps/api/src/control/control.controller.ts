@@ -4,6 +4,7 @@ import { Roles } from '../common/rbac/roles.decorator';
 import { DecisionService } from './decision.service';
 import { ValueLedgerService } from './value-ledger.service';
 import { PolicyRegistry } from './policy/policy.registry';
+import { RoiService } from './roi.service';
 
 /**
  * Read-only introspection over the control loop — the backend truth source, not
@@ -17,6 +18,7 @@ export class ControlController {
     private readonly decisions: DecisionService,
     private readonly ledger: ValueLedgerService,
     private readonly policies: PolicyRegistry,
+    private readonly roi: RoiService,
   ) {}
 
   @Get('decisions')
@@ -35,6 +37,13 @@ export class ControlController {
   @Roles('ADMIN')
   ledgerSummary() {
     return this.ledger.summary();
+  }
+
+  /** Sprint 2: closed-loop ROI read model (attribution-honest). */
+  @Get('roi')
+  @Roles('ADMIN')
+  roiSummary(@Query('days') days?: string) {
+    return this.roi.summary(days ? Math.max(1, Math.min(365, parseInt(days, 10) || 30)) : 30);
   }
 
   @Get('policy')

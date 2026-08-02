@@ -186,6 +186,126 @@ export const api = {
   plans: () => request<any[]>(`/billing/plans`),
   billingSummary: () => request<any>(`/billing/summary`),
 
+  // ── Sprint 2: Unified Inbox ──
+  conversations: (params?: { status?: string; channel?: string; assigned?: string; unread?: boolean; q?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.status) q.set('status', params.status);
+    if (params?.channel) q.set('channel', params.channel);
+    if (params?.assigned) q.set('assigned', params.assigned);
+    if (params?.unread) q.set('unread', 'true');
+    if (params?.q) q.set('q', params.q);
+    const qs = q.toString();
+    return request<any[]>(`/conversations${qs ? `?${qs}` : ''}`);
+  },
+  conversation: (id: string) => request<any>(`/conversations/${id}`),
+  conversationChannels: () => request<any[]>(`/conversations/channels`),
+  startConversation: (body: Record<string, unknown>) => request<any>(`/conversations`, { method: 'POST', body: JSON.stringify(body) }),
+  replyConversation: (id: string, body: string) => request<any>(`/conversations/${id}/reply`, { method: 'POST', body: JSON.stringify({ body }) }),
+  noteConversation: (id: string, body: string) => request<any>(`/conversations/${id}/notes`, { method: 'POST', body: JSON.stringify({ body }) }),
+  assignConversation: (id: string, body: { userId?: string | null; agentKey?: string | null }) =>
+    request<any>(`/conversations/${id}/assign`, { method: 'PATCH', body: JSON.stringify(body) }),
+  setConversationStatus: (id: string, status: string) =>
+    request<any>(`/conversations/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  markConversationRead: (id: string) => request<any>(`/conversations/${id}/read`, { method: 'POST' }),
+  suggestReply: (id: string) => request<any>(`/conversations/${id}/suggest-reply`, { method: 'POST' }),
+
+  // ── Sprint 2: Reviews ──
+  reviewsSummary: () => request<any>(`/reviews/summary`),
+  reviews: (params?: { responseStatus?: string; minRating?: number; maxRating?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.responseStatus) q.set('responseStatus', params.responseStatus);
+    if (params?.minRating) q.set('minRating', String(params.minRating));
+    if (params?.maxRating) q.set('maxRating', String(params.maxRating));
+    const qs = q.toString();
+    return request<any[]>(`/reviews${qs ? `?${qs}` : ''}`);
+  },
+  recordReview: (body: Record<string, unknown>) => request<any>(`/reviews`, { method: 'POST', body: JSON.stringify(body) }),
+  reviewRequests: () => request<any[]>(`/reviews/requests`),
+  sendReviewRequest: (body: { contactId: string; channel?: string; message?: string }) =>
+    request<any>(`/reviews/requests`, { method: 'POST', body: JSON.stringify(body) }),
+  draftReviewResponse: (id: string) => request<any>(`/reviews/${id}/draft-response`, { method: 'POST' }),
+  respondReview: (id: string, responseText: string) =>
+    request<any>(`/reviews/${id}/respond`, { method: 'POST', body: JSON.stringify({ responseText }) }),
+  dismissReview: (id: string) => request<any>(`/reviews/${id}/dismiss`, { method: 'PATCH' }),
+  reviewFollowUp: (id: string) => request<any>(`/reviews/${id}/follow-up`, { method: 'POST', body: JSON.stringify({}) }),
+
+  // ── Sprint 2: Marketing ──
+  campaigns: (params?: { status?: string; templates?: boolean }) => {
+    const q = new URLSearchParams();
+    if (params?.status) q.set('status', params.status);
+    if (params?.templates) q.set('templates', 'true');
+    const qs = q.toString();
+    return request<any[]>(`/marketing/campaigns${qs ? `?${qs}` : ''}`);
+  },
+  campaign: (id: string) => request<any>(`/marketing/campaigns/${id}`),
+  campaignMetrics: (id: string) => request<any>(`/marketing/campaigns/${id}/metrics`),
+  createCampaign: (body: Record<string, unknown>) => request<any>(`/marketing/campaigns`, { method: 'POST', body: JSON.stringify(body) }),
+  updateCampaign: (id: string, body: Record<string, unknown>) =>
+    request<any>(`/marketing/campaigns/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  approveCampaign: (id: string) => request<any>(`/marketing/campaigns/${id}/approve`, { method: 'POST' }),
+  startCampaign: (id: string) => request<any>(`/marketing/campaigns/${id}/start`, { method: 'POST' }),
+  pauseCampaign: (id: string) => request<any>(`/marketing/campaigns/${id}/pause`, { method: 'POST' }),
+  cancelCampaign: (id: string) => request<any>(`/marketing/campaigns/${id}/cancel`, { method: 'POST' }),
+  previewAudience: (audience: Record<string, unknown>, channel: string) =>
+    request<any>(`/marketing/audience/preview`, { method: 'POST', body: JSON.stringify({ audience, channel }) }),
+  aiDraftCampaign: (body: { channel: string; goal?: string; notes?: string }) =>
+    request<any>(`/marketing/ai-draft`, { method: 'POST', body: JSON.stringify(body) }),
+
+  // ── Sprint 2: Social ──
+  socialPosts: (params?: { status?: string; platform?: string; from?: string; to?: string }) => {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries(params ?? {})) if (v) q.set(k, String(v));
+    const qs = q.toString();
+    return request<any[]>(`/social/posts${qs ? `?${qs}` : ''}`);
+  },
+  socialConnections: () => request<any[]>(`/social/connections`),
+  createSocialPost: (body: Record<string, unknown>) => request<any>(`/social/posts`, { method: 'POST', body: JSON.stringify(body) }),
+  updateSocialPost: (id: string, body: Record<string, unknown>) =>
+    request<any>(`/social/posts/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  socialAction: (id: string, action: 'submit' | 'approve' | 'reject' | 'cancel') =>
+    request<any>(`/social/posts/${id}/${action}`, { method: 'POST' }),
+  scheduleSocialPost: (id: string, scheduledFor: string) =>
+    request<any>(`/social/posts/${id}/schedule`, { method: 'POST', body: JSON.stringify({ scheduledFor }) }),
+  markSocialPublished: (id: string, note?: string) =>
+    request<any>(`/social/posts/${id}/mark-published`, { method: 'POST', body: JSON.stringify({ note }) }),
+  aiDraftSocial: (body: { platform: string; topic?: string; notes?: string }) =>
+    request<any>(`/social/ai-draft`, { method: 'POST', body: JSON.stringify(body) }),
+  socialExport: () => request<any>(`/social/export`),
+
+  // ── Sprint 2: Sales / CRM ──
+  lead: (id: string) => request<any>(`/leads/${id}`),
+  patchLead: (id: string, body: Record<string, unknown>) => request<any>(`/leads/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  moveStageWithOutcome: (id: string, stage: string, extra?: { lostReason?: string; actualValue?: number }) =>
+    request(`/leads/${id}/stage`, { method: 'PATCH', body: JSON.stringify({ stage, ...extra }) }),
+  contacts: (q?: string) => request<any[]>(`/contacts${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  contact: (id: string) => request<any>(`/contacts/${id}`),
+  createContact: (body: Record<string, unknown>) => request<any>(`/contacts`, { method: 'POST', body: JSON.stringify(body) }),
+  updateContact: (id: string, body: Record<string, unknown>) =>
+    request<any>(`/contacts/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+
+  // ── Sprint 2: ROI, automation ops, settings ──
+  roi: (days?: number) => request<any>(`/control/roi${days ? `?days=${days}` : ''}`),
+  automationEvents: () => request<string[]>(`/automation/events`),
+  automationRecipes: () => request<any[]>(`/automation/recipes`),
+  automationHistory: (status?: string) => request<any[]>(`/automation/history${status ? `?status=${status}` : ''}`),
+  createAutomationRule: (body: Record<string, unknown>) =>
+    request<any>(`/automation/rules`, { method: 'POST', body: JSON.stringify(body) }),
+  team: () => request<any[]>(`/tenants/team`),
+  integrationsStatus: () => request<any[]>(`/tenants/integrations-status`),
+  auditHistory: () => request<any[]>(`/tenants/audit`),
+  changePreset: (presetKey: string) => request<any>(`/tenants/preset`, { method: 'PATCH', body: JSON.stringify({ presetKey }) }),
+  applyOnboarding: (body: Record<string, unknown>) =>
+    request<any>(`/tenants/onboarding/apply`, { method: 'POST', body: JSON.stringify(body) }),
+
+  // ── Sprint 2: Payments extras (existing backend, newly wired) ──
+  createInvoice: (body: Record<string, unknown>) => request<any>(`/documents/invoices`, { method: 'POST', body: JSON.stringify(body) }),
+  createQuote: (body: Record<string, unknown>) => request<any>(`/documents/quotes`, { method: 'POST', body: JSON.stringify(body) }),
+  sendDocument: (id: string) => request<any>(`/documents/${id}/send`, { method: 'POST' }),
+  acceptQuote: (id: string) => request<any>(`/documents/quotes/${id}/accept`, { method: 'POST' }),
+  convertQuote: (id: string) => request<any>(`/documents/quotes/${id}/convert`, { method: 'POST' }),
+  recordOfflinePayment: (documentId: string, body?: { amount?: number; method?: string }) =>
+    request<any>(`/payments/record/${documentId}`, { method: 'POST', body: JSON.stringify(body ?? {}) }),
+
   // public marketing site (no auth)
   contactUs: (body: { name: string; email: string; company?: string; topic?: string; message: string; website?: string }) =>
     request<{ ok: true }>(`/public/contact`, { method: 'POST', body: JSON.stringify(body) }),

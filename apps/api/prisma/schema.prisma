@@ -180,38 +180,43 @@ model Tenant {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
-  users          User[]
-  contacts       Contact[]
-  leads          Lead[]
-  conversations  Conversation[]
-  jobs           Job[]
-  bookings       Booking[]
-  documents      Document[]
-  automationRules AutomationRule[]
-  integrations   Integration[]
-  payments       Payment[]
-  eventLogs      EventLog[]
-  auditLogs      AuditLog[]
-  knowledgeDocs   KnowledgeDoc[]
-  knowledgeChunks KnowledgeChunk[]
-  memories        EntityMemory[]
-  decisionRecords DecisionRecord[]
-  ledgerEntries   ValueLedgerEntry[]
-  companies       Company[]
-  activities      Activity[]
-  teams           Team[]
-  workingHours    WorkingHours[]
-  timeOff         TimeOff[]
-  documentLineItems DocumentLineItem[]
-  portalUsers     CustomerPortalUser[]
-  notifications   Notification[]
-  bookingRequests BookingRequest[]
-  agentApprovals  AgentApproval[]
-  aiUsageEvents   AiUsageEvent[]
-  companyProfile  CompanyProfile?
-  goals           Goal[]
-  kpis            Kpi[]
-  kpiSnapshots    KpiSnapshot[]
+  users              User[]
+  contacts           Contact[]
+  leads              Lead[]
+  conversations      Conversation[]
+  jobs               Job[]
+  bookings           Booking[]
+  documents          Document[]
+  automationRules    AutomationRule[]
+  integrations       Integration[]
+  payments           Payment[]
+  eventLogs          EventLog[]
+  auditLogs          AuditLog[]
+  knowledgeDocs      KnowledgeDoc[]
+  knowledgeChunks    KnowledgeChunk[]
+  memories           EntityMemory[]
+  decisionRecords    DecisionRecord[]
+  ledgerEntries      ValueLedgerEntry[]
+  companies          Company[]
+  activities         Activity[]
+  teams              Team[]
+  workingHours       WorkingHours[]
+  timeOff            TimeOff[]
+  documentLineItems  DocumentLineItem[]
+  portalUsers        CustomerPortalUser[]
+  notifications      Notification[]
+  bookingRequests    BookingRequest[]
+  agentApprovals     AgentApproval[]
+  aiUsageEvents      AiUsageEvent[]
+  companyProfile     CompanyProfile?
+  goals              Goal[]
+  kpis               Kpi[]
+  kpiSnapshots       KpiSnapshot[]
+  campaigns          Campaign[]
+  campaignRecipients CampaignRecipient[]
+  socialPosts        SocialPost[]
+  reviews            Review[]
+  reviewRequests     ReviewRequest[]
 
   @@index([industryModule])
 }
@@ -220,39 +225,40 @@ model Tenant {
 // Internal accounts (owner/admin/staff) AND authenticated customers.
 
 model User {
-  id           String        @id @default(cuid())
-  tenantId     String
-  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  email        String
-  passwordHash String?
-  name         String
-  phone        String?
-  role         UserRole
-  status       AccountStatus @default(ACTIVE)
+  id                 String        @id @default(cuid())
+  tenantId           String
+  tenant             Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  email              String
+  passwordHash       String?
+  name               String
+  phone              String?
+  role               UserRole
+  status             AccountStatus @default(ACTIVE)
   // Staff-only: skills/zones used by the Dispatch agent for routing.
-  skills       String[]      @default([])
-  serviceZones String[]      @default([])
-  hourlyRate   Decimal?      @db.Decimal(10, 2) // labor costing (Value Ledger)
+  skills             String[]      @default([])
+  serviceZones       String[]      @default([])
+  hourlyRate         Decimal?      @db.Decimal(10, 2) // labor costing (Value Ledger)
   // If this user is the portal login for a Contact, link them.
-  contactId    String?       @unique
-  contact      Contact?      @relation(fields: [contactId], references: [id])
-  teamId       String?
-  team         Team?         @relation(fields: [teamId], references: [id])
+  contactId          String?       @unique
+  contact            Contact?      @relation(fields: [contactId], references: [id])
+  teamId             String?
+  team               Team?         @relation(fields: [teamId], references: [id])
   // Terms/Privacy acceptance at signup (Website Release 2). Nullable so
   // existing users are unaffected and never blocked from signing in.
-  termsAcceptedAt      DateTime?
-  termsVersion         String?
+  termsAcceptedAt    DateTime?
+  termsVersion       String?
   // Separate, unchecked-by-default marketing opt-in — never implied by ToS acceptance.
-  marketingConsent     Boolean   @default(false)
-  marketingConsentAt   DateTime?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  marketingConsent   Boolean       @default(false)
+  marketingConsentAt DateTime?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 
-  assignedLeads Lead[]    @relation("LeadAssignee")
-  assignedJobs  Job[]     @relation("JobAssignee")
-  bookings      Booking[] @relation("BookingAssignee")
-  workingHours  WorkingHours[]
-  timeOff       TimeOff[]
+  assignedLeads         Lead[]         @relation("LeadAssignee")
+  assignedJobs          Job[]          @relation("JobAssignee")
+  bookings              Booking[]      @relation("BookingAssignee")
+  assignedConversations Conversation[] @relation("ConversationAssignee")
+  workingHours          WorkingHours[]
+  timeOff               TimeOff[]
 
   @@unique([tenantId, email])
   @@index([tenantId, role])
@@ -262,31 +268,34 @@ model User {
 // The person on the other side: customer / tenant-resident / applicant.
 
 model Contact {
-  id        String   @id @default(cuid())
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  name      String
-  email     String?
-  phone     String?
+  id         String   @id @default(cuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name       String
+  email      String?
+  phone      String?
   // Vertical-specific facts (property unit, A-number, company, etc.)
-  attributes Json    @default("{}")
-  tags      String[] @default([])
-  companyId String?
-  company   Company? @relation(fields: [companyId], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  attributes Json     @default("{}")
+  tags       String[] @default([])
+  companyId  String?
+  company    Company? @relation(fields: [companyId], references: [id])
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  portalUser    User?
-  portalAccount CustomerPortalUser?
-  leads         Lead[]
-  conversations Conversation[]
-  jobs          Job[]
-  bookings      Booking[]
-  documents     Document[]
-  payments      Payment[]
-  activities    Activity[]
-  notifications Notification[]
-  bookingRequests BookingRequest[]
+  portalUser         User?
+  portalAccount      CustomerPortalUser?
+  leads              Lead[]
+  conversations      Conversation[]
+  jobs               Job[]
+  bookings           Booking[]
+  documents          Document[]
+  payments           Payment[]
+  activities         Activity[]
+  notifications      Notification[]
+  bookingRequests    BookingRequest[]
+  campaignRecipients CampaignRecipient[]
+  reviews            Review[]
+  reviewRequests     ReviewRequest[]
 
   @@index([tenantId, phone])
   @@index([tenantId, email])
@@ -297,27 +306,34 @@ model Contact {
 // (e.g. "service_request", "maintenance_request", "client_lead").
 
 model Lead {
-  id          String     @id @default(cuid())
-  tenantId    String
-  tenant      Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  contactId   String
-  contact     Contact    @relation(fields: [contactId], references: [id])
-  entityType  String
-  stage       LeadStage  @default(NEW)
-  source      String?    // voice, webchat, sms, web_form, referral...
-  serviceType String?
-  urgency     Urgency    @default(NORMAL)
-  location    String?
-  estimatedValue Decimal? @db.Decimal(12, 2)
+  id             String    @id @default(cuid())
+  tenantId       String
+  tenant         Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contactId      String
+  contact        Contact   @relation(fields: [contactId], references: [id])
+  entityType     String
+  stage          LeadStage @default(NEW)
+  source         String? // voice, webchat, sms, web_form, referral...
+  serviceType    String?
+  urgency        Urgency   @default(NORMAL)
+  location       String?
+  estimatedValue Decimal?  @db.Decimal(12, 2)
+  // Realized value when the opportunity is won (Sprint 2 — never fabricated;
+  // set by staff or derived from a linked paid invoice).
+  actualValue    Decimal?  @db.Decimal(12, 2)
+  wonAt          DateTime?
+  // Marketing attribution (Sprint 2): the campaign that produced this lead.
+  campaignId     String?
+  campaign       Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
   // Intake answers collected by the Voice/Chat agents, keyed by module field.
-  intake      Json       @default("{}")
-  lostReason  String?
-  assignedToId String?
-  assignedTo  User?      @relation("LeadAssignee", fields: [assignedToId], references: [id])
-  companyId   String?
-  company     Company?   @relation(fields: [companyId], references: [id])
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  intake         Json      @default("{}")
+  lostReason     String?
+  assignedToId   String?
+  assignedTo     User?     @relation("LeadAssignee", fields: [assignedToId], references: [id])
+  companyId      String?
+  company        Company?  @relation(fields: [companyId], references: [id])
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   conversations Conversation[]
   jobs          Job[]
@@ -335,24 +351,37 @@ model Lead {
 // Omnichannel thread. externalRef = provider thread id (Twilio/Vapi/Stripe).
 
 model Conversation {
-  id         String             @id @default(cuid())
-  tenantId   String
-  tenant     Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  contactId  String?
-  contact    Contact?           @relation(fields: [contactId], references: [id])
-  leadId     String?
-  lead       Lead?              @relation(fields: [leadId], references: [id])
-  channel    Channel
-  status     ConversationStatus @default(OPEN)
+  id            String             @id @default(cuid())
+  tenantId      String
+  tenant        Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contactId     String?
+  contact       Contact?           @relation(fields: [contactId], references: [id])
+  leadId        String?
+  lead          Lead?              @relation(fields: [leadId], references: [id])
+  channel       Channel
+  status        ConversationStatus @default(OPEN)
   // Which agent currently owns the thread.
-  handledBy  Actor              @default(SYSTEM)
-  externalRef String?
-  createdAt  DateTime           @default(now())
-  updatedAt  DateTime           @updatedAt
+  handledBy     Actor              @default(SYSTEM)
+  externalRef   String?
+  // ── Sprint 2 (Unified Inbox V1) — all additive with safe defaults ──
+  subject       String?
+  // Staff member the thread is assigned to (human ownership).
+  assignedToId  String?
+  assignedTo    User?              @relation("ConversationAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  // AI employee assigned to the thread (agent ownership), e.g. "chat".
+  agentKey      String?
+  // True when the newest inbound message hasn't been read by staff yet.
+  unread        Boolean            @default(false)
+  lastMessageAt DateTime?
+  closedAt      DateTime?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
 
-  messages   Message[]
+  messages Message[]
 
   @@index([tenantId, status])
+  @@index([tenantId, assignedToId])
+  @@index([tenantId, unread])
   @@index([externalRef])
 }
 
@@ -364,6 +393,8 @@ model Message {
   author         Actor
   body           String
   mediaUrl       String?
+  // Internal note: visible to staff only, never sent to the contact.
+  isInternal     Boolean          @default(false)
   // STT transcript, intent, entities, tool calls, etc.
   meta           Json             @default("{}")
   createdAt      DateTime         @default(now())
@@ -376,34 +407,34 @@ model Message {
 // (technician_job / contractor_job / case). Generic so all verticals share it.
 
 model Job {
-  id           String      @id @default(cuid())
-  tenantId     String
-  tenant       Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  leadId       String?
-  lead         Lead?       @relation(fields: [leadId], references: [id])
-  contactId    String?
-  contact      Contact?    @relation(fields: [contactId], references: [id])
-  entityType   String
-  title        String
-  description  String?
-  status       JobStatus   @default(UNSCHEDULED)
-  priority     JobPriority @default(NORMAL)
-  location     String?
+  id             String      @id @default(cuid())
+  tenantId       String
+  tenant         Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  leadId         String?
+  lead           Lead?       @relation(fields: [leadId], references: [id])
+  contactId      String?
+  contact        Contact?    @relation(fields: [contactId], references: [id])
+  entityType     String
+  title          String
+  description    String?
+  status         JobStatus   @default(UNSCHEDULED)
+  priority       JobPriority @default(NORMAL)
+  location       String?
   scheduledStart DateTime?
   scheduledEnd   DateTime?
   completedAt    DateTime?
-  assignedToId String?
-  assignedTo   User?       @relation("JobAssignee", fields: [assignedToId], references: [id])
-  teamId       String?
-  team         Team?       @relation(fields: [teamId], references: [id])
+  assignedToId   String?
+  assignedTo     User?       @relation("JobAssignee", fields: [assignedToId], references: [id])
+  teamId         String?
+  team           Team?       @relation(fields: [teamId], references: [id])
   // Checklist, parts, case milestones, photos — vertical specific.
-  metadata     Json        @default("{}")
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  metadata       Json        @default("{}")
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
 
-  bookings     Booking[]
-  documents    Document[]
-  activities   Activity[]
+  bookings   Booking[]
+  documents  Document[]
+  activities Activity[]
 
   @@index([tenantId, status])
   @@index([tenantId, assignedToId, scheduledStart])
@@ -413,25 +444,25 @@ model Job {
 // ───────────────────────────── Bookings ──────────────────────────
 
 model Booking {
-  id            String        @id @default(cuid())
-  tenantId      String
-  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  contactId     String?
-  contact       Contact?      @relation(fields: [contactId], references: [id])
-  leadId        String?
-  lead          Lead?         @relation(fields: [leadId], references: [id])
-  jobId         String?
-  job           Job?          @relation(fields: [jobId], references: [id])
-  start         DateTime
-  end           DateTime
-  status        BookingStatus @default(REQUESTED)
-  assignedToId  String?
-  assignedTo    User?         @relation("BookingAssignee", fields: [assignedToId], references: [id])
+  id              String        @id @default(cuid())
+  tenantId        String
+  tenant          Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contactId       String?
+  contact         Contact?      @relation(fields: [contactId], references: [id])
+  leadId          String?
+  lead            Lead?         @relation(fields: [leadId], references: [id])
+  jobId           String?
+  job             Job?          @relation(fields: [jobId], references: [id])
+  start           DateTime
+  end             DateTime
+  status          BookingStatus @default(REQUESTED)
+  assignedToId    String?
+  assignedTo      User?         @relation("BookingAssignee", fields: [assignedToId], references: [id])
   // External calendar event id (Google Calendar) for two-way sync.
   calendarEventId String?
-  notes         String?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   @@index([tenantId, start])
   @@index([assignedToId, start])
@@ -441,28 +472,28 @@ model Booking {
 // ──────────────────────────── Documents ──────────────────────────
 
 model Document {
-  id         String         @id @default(cuid())
-  tenantId   String
-  tenant     Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  contactId  String?
-  contact    Contact?       @relation(fields: [contactId], references: [id])
-  leadId     String?
-  lead       Lead?          @relation(fields: [leadId], references: [id])
-  jobId      String?
-  job        Job?           @relation(fields: [jobId], references: [id])
-  type       DocumentType
-  status     DocumentStatus @default(DRAFT)
-  templateKey String?       // which module template generated it
-  title      String
-  url        String?        // object-storage URL of rendered PDF
-  amount     Decimal?       @db.Decimal(12, 2)
+  id          String         @id @default(cuid())
+  tenantId    String
+  tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contactId   String?
+  contact     Contact?       @relation(fields: [contactId], references: [id])
+  leadId      String?
+  lead        Lead?          @relation(fields: [leadId], references: [id])
+  jobId       String?
+  job         Job?           @relation(fields: [jobId], references: [id])
+  type        DocumentType
+  status      DocumentStatus @default(DRAFT)
+  templateKey String? // which module template generated it
+  title       String
+  url         String? // object-storage URL of rendered PDF
+  amount      Decimal?       @db.Decimal(12, 2)
   // Line items, form answers, signature blocks.
-  data       Json           @default("{}")
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
+  data        Json           @default("{}")
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 
-  payments   Payment[]
-  lineItems  DocumentLineItem[]
+  payments  Payment[]
+  lineItems DocumentLineItem[]
 
   @@index([tenantId, type, status])
   @@index([tenantId, contactId])
@@ -476,7 +507,7 @@ model AutomationRule {
   tenantId     String
   tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   name         String
-  triggerEvent String   // e.g. "call.missed", "lead.created"
+  triggerEvent String // e.g. "call.missed", "lead.created"
   // JSON-logic condition tree, evaluated against the event payload.
   conditions   Json     @default("[]")
   // Ordered action list: [{ type: "SEND_SMS", params: {...} }, ...]
@@ -511,20 +542,20 @@ model Integration {
 // ───────────────────────────── Payments ──────────────────────────
 
 model Payment {
-  id          String        @id @default(cuid())
+  id          String              @id @default(cuid())
   tenantId    String
-  tenant      Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   contactId   String?
-  contact     Contact?      @relation(fields: [contactId], references: [id])
+  contact     Contact?            @relation(fields: [contactId], references: [id])
   documentId  String?
-  document    Document?     @relation(fields: [documentId], references: [id])
-  amount      Decimal       @db.Decimal(12, 2)
-  currency    String        @default("usd")
-  status      PaymentStatus @default(PENDING)
+  document    Document?           @relation(fields: [documentId], references: [id])
+  amount      Decimal             @db.Decimal(12, 2)
+  currency    String              @default("usd")
+  status      PaymentStatus       @default(PENDING)
   provider    IntegrationProvider @default(STRIPE)
-  externalRef String?       // Stripe PaymentIntent id
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  externalRef String? // Stripe PaymentIntent id
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
 
   @@index([tenantId, status])
   @@index([tenantId, contactId])
@@ -538,7 +569,7 @@ model EventLog {
   id         String      @id @default(cuid())
   tenantId   String
   tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  name       String      // "call.missed", "twilio.message.received"...
+  name       String // "call.missed", "twilio.message.received"...
   source     String      @default("internal")
   externalId String?
   payload    Json        @default("{}")
@@ -554,8 +585,8 @@ model AuditLog {
   id        String   @id @default(cuid())
   tenantId  String
   tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  actorId   String?  // user id or agent name
-  action    String   // "lead.stage_changed", "user.invited"...
+  actorId   String? // user id or agent name
+  action    String // "lead.stage_changed", "user.invited"...
   entity    String?
   entityId  String?
   diff      Json     @default("{}")
@@ -572,35 +603,35 @@ model AuditLog {
 enum KnowledgeType {
   SERVICE
   PRICING
-  SOP        // standard operating procedure
+  SOP // standard operating procedure
   FAQ
   CONTRACT
   DOCUMENT
-  POLICY     // business rule expressed as prose
+  POLICY // business rule expressed as prose
   NOTE
-  PROFILE    // company profile
+  PROFILE // company profile
 }
 
 // Permission tier — gates which audiences may retrieve a doc via RAG.
 enum KnowledgeVisibility {
-  PUBLIC     // safe for the customer portal AI
-  INTERNAL   // staff + admin + owner
+  PUBLIC // safe for the customer portal AI
+  INTERNAL // staff + admin + owner
   RESTRICTED // admin + owner only
 }
 
 enum MemorySubject {
-  CUSTOMER   // -> Contact.id
-  EMPLOYEE   // -> User.id
-  TENANT     // org-wide memory
+  CUSTOMER // -> Contact.id
+  EMPLOYEE // -> User.id
+  TENANT // org-wide memory
 }
 
 enum MemoryKind {
-  PREFERENCE   // "prefers morning visits", "text not call"
-  FACT         // "has a 2-year warranty on the AC unit"
-  SUMMARY      // rolling summary of interactions
-  INTERACTION  // a single logged interaction
-  PERFORMANCE  // employee performance signal
-  STYLE        // communication style
+  PREFERENCE // "prefers morning visits", "text not call"
+  FACT // "has a 2-year warranty on the AC unit"
+  SUMMARY // rolling summary of interactions
+  INTERACTION // a single logged interaction
+  PERFORMANCE // employee performance signal
+  STYLE // communication style
 }
 
 /// A unit of business knowledge. Versioned: editing supersedes the old row.
@@ -610,12 +641,12 @@ model KnowledgeDoc {
   tenant         Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   type           KnowledgeType
   title          String
-  source         String?             // url, filename, "manual", integration name
-  content        String              // raw text (pre-chunk)
+  source         String? // url, filename, "manual", integration name
+  content        String // raw text (pre-chunk)
   metadata       Json                @default("{}")
   visibility     KnowledgeVisibility @default(INTERNAL)
   version        Int                 @default(1)
-  supersededById String?             // points to the newer version, if any
+  supersededById String? // points to the newer version, if any
   archived       Boolean             @default(false)
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
@@ -628,17 +659,17 @@ model KnowledgeDoc {
 
 /// A retrievable, embedded slice of a KnowledgeDoc.
 model KnowledgeChunk {
-  id        String                         @id @default(cuid())
+  id        String                       @id @default(cuid())
   tenantId  String
-  tenant    Tenant                         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant    Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   docId     String
-  doc       KnowledgeDoc                   @relation(fields: [docId], references: [id], onDelete: Cascade)
+  doc       KnowledgeDoc                 @relation(fields: [docId], references: [id], onDelete: Cascade)
   ordinal   Int
   content   String
   tokens    Int?
   // pgvector column (voyage-3 = 1024 dims). Managed via raw SQL.
-  embedding  Unsupported("vector(1024)")?
-  createdAt DateTime                       @default(now())
+  embedding Unsupported("vector(1024)")?
+  createdAt DateTime                     @default(now())
 
   @@index([tenantId])
   @@index([docId, ordinal])
@@ -651,12 +682,12 @@ model EntityMemory {
   tenantId      String
   tenant        Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   subjectType   MemorySubject
-  subjectId     String                       // Contact.id / User.id / tenantId
+  subjectId     String // Contact.id / User.id / tenantId
   kind          MemoryKind
-  key           String?                      // optional structured key
+  key           String? // optional structured key
   content       String
   confidence    Float                        @default(1)
-  sourceEventId String?                      // EventLog.id that produced it
+  sourceEventId String? // EventLog.id that produced it
   embedding     Unsupported("vector(1024)")?
   createdAt     DateTime                     @default(now())
   updatedAt     DateTime                     @updatedAt
@@ -671,65 +702,65 @@ model EntityMemory {
 // Additive only — the automation engine and agents are untouched and wrapped.
 
 enum DecisionStatus {
-  OPEN     // action executed, outcome not yet observed
-  MET      // expected business outcome occurred
-  MISSED   // deadline passed without the outcome
-  PARTIAL  // an intermediate signal occurred, final outcome pending
+  OPEN // action executed, outcome not yet observed
+  MET // expected business outcome occurred
+  MISSED // deadline passed without the outcome
+  PARTIAL // an intermediate signal occurred, final outcome pending
 }
 
 enum ValueType {
-  REVENUE_BOOKED     // a job/booking was created (expected revenue)
-  REVENUE_COLLECTED  // a payment was received
-  LEAD_RECOVERED     // a lead was created/saved (e.g. missed-call save)
-  CONVERSION         // a qualifying step completed
-  ENGAGEMENT         // customer responded / re-engaged
-  COST               // estimated cost of the action
+  REVENUE_BOOKED // a job/booking was created (expected revenue)
+  REVENUE_COLLECTED // a payment was received
+  LEAD_RECOVERED // a lead was created/saved (e.g. missed-call save)
+  CONVERSION // a qualifying step completed
+  ENGAGEMENT // customer responded / re-engaged
+  COST // estimated cost of the action
 }
 
 enum LedgerDirection {
   CREDIT // value generated
-  DEBIT  // cost incurred
+  DEBIT // cost incurred
 }
 
 /// One per executed automation action. The outcome contract (expectedSignal +
 /// expectedBy) is set before the action runs; the evaluator resolves it later.
 model DecisionRecord {
-  id             String         @id @default(cuid())
-  tenantId       String
-  tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   // Provenance — links a decision to the triggering event + position in the
   // resolved rule/action matrix (used as the idempotency key on retries).
-  correlationId  String
-  triggerEvent   String         // event name that triggered it
-  policy         String         @default("rule")
-  ruleName       String?
-  ruleIndex      Int            @default(0)
-  actionIndex    Int            @default(0)
-  actionType     String
-  actionParams   Json           @default("{}")
-  context        Json           @default("{}") // snapshot from Business Brain + event
+  correlationId String
+  triggerEvent  String // event name that triggered it
+  policy        String  @default("rule")
+  ruleName      String?
+  ruleIndex     Int     @default(0)
+  actionIndex   Int     @default(0)
+  actionType    String
+  actionParams  Json    @default("{}")
+  context       Json    @default("{}") // snapshot from Business Brain + event
 
   // Expected outcome — DEFINED BEFORE THE ACTION EXECUTES.
-  expectedSignal String?        // downstream event that would satisfy it
-  expectedValue  Decimal?       @db.Decimal(12, 2)
-  expectedBy     DateTime?      // deadline; past-due OPEN → MISSED
+  expectedSignal String? // downstream event that would satisfy it
+  expectedValue  Decimal?  @db.Decimal(12, 2)
+  expectedBy     DateTime? // deadline; past-due OPEN → MISSED
 
-  status         DecisionStatus @default(OPEN)
+  status DecisionStatus @default(OPEN)
 
   // Subject refs for matching downstream business signals.
-  contactId      String?
-  leadId         String?
-  jobId          String?
+  contactId String?
+  leadId    String?
+  jobId     String?
 
   resolvedAt     DateTime?
-  realizedValue  Decimal?       @db.Decimal(12, 2)
+  realizedValue  Decimal?  @db.Decimal(12, 2)
   resolutionNote String?
 
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  ledgerEntries  ValueLedgerEntry[]
+  ledgerEntries ValueLedgerEntry[]
 
   @@unique([tenantId, correlationId, ruleIndex, actionIndex], name: "decision_dedupe")
   @@index([tenantId, status, expectedSignal])
@@ -741,19 +772,23 @@ model DecisionRecord {
 /// The backend truth source for business impact: value generated (and optional
 /// cost) per action, attributable to a decision/agent/policy.
 model ValueLedgerEntry {
-  id         String          @id @default(cuid())
-  tenantId   String
-  tenant     Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  decisionId String?
-  decision   DecisionRecord? @relation(fields: [decisionId], references: [id], onDelete: SetNull)
-  actionType String?
-  agent      String?         // policy/agent/action that produced the value
-  valueType  ValueType
-  direction  LedgerDirection @default(CREDIT)
-  amount     Decimal         @db.Decimal(12, 2)
-  currency   String          @default("usd")
-  source     String?         // the signal event that realized it
-  createdAt  DateTime        @default(now())
+  id          String          @id @default(cuid())
+  tenantId    String
+  tenant      Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  decisionId  String?
+  decision    DecisionRecord? @relation(fields: [decisionId], references: [id], onDelete: SetNull)
+  actionType  String?
+  agent       String? // policy/agent/action that produced the value
+  valueType   ValueType
+  direction   LedgerDirection @default(CREDIT)
+  amount      Decimal         @db.Decimal(12, 2)
+  currency    String          @default("usd")
+  source      String? // the signal event that realized it
+  // Sprint 2 (closed-loop ROI): how confidently this entry traces to a cause.
+  // Old rows default to UNKNOWN — honest, never retro-labeled.
+  attribution AttributionKind @default(UNKNOWN)
+  campaignId  String?
+  createdAt   DateTime        @default(now())
 
   @@index([tenantId, valueType, createdAt])
   @@index([tenantId, createdAt])
@@ -765,19 +800,19 @@ model ValueLedgerEntry {
 // every logged touchpoint, auto-projected from EventBus. No per-type tables.
 
 model Company {
-  id         String     @id @default(cuid())
+  id         String   @id @default(cuid())
   tenantId   String
-  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   name       String
   domain     String?
   phone      String?
   email      String?
   website    String?
   // Vertical-specific facts (portfolio size, industry, account tier, etc.)
-  attributes Json       @default("{}")
-  tags       String[]   @default([])
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
+  attributes Json     @default("{}")
+  tags       String[] @default([])
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   contacts   Contact[]
   leads      Lead[]
@@ -819,25 +854,25 @@ model Activity {
   title        String
   body         String?
   actor        Actor          @default(SYSTEM) // who/what produced it (reuses Actor)
-  authorUserId String?        // human author, if any
-  assigneeId   String?        // task owner
+  authorUserId String? // human author, if any
+  assigneeId   String? // task owner
   dueAt        DateTime?
   completedAt  DateTime?
 
   // Polymorphic subject links (any subset).
-  contactId    String?
-  contact      Contact?       @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  companyId    String?
-  company      Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  leadId       String?
-  lead         Lead?          @relation(fields: [leadId], references: [id], onDelete: SetNull)
-  jobId        String?
-  job          Job?           @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  contactId String?
+  contact   Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  leadId    String?
+  lead      Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  jobId     String?
+  job       Job?     @relation(fields: [jobId], references: [id], onDelete: SetNull)
 
-  sourceEventId String?       // EventLog id when auto-projected from an event
-  metadata      Json          @default("{}")
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  sourceEventId String? // EventLog id when auto-projected from an event
+  metadata      Json     @default("{}")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@index([tenantId, contactId, createdAt])
   @@index([tenantId, companyId, createdAt])
@@ -873,7 +908,7 @@ model WorkingHours {
   tenant      Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   userId      String
   user        User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  weekday     Int    // 0 = Sunday … 6 = Saturday
+  weekday     Int // 0 = Sunday … 6 = Saturday
   startMinute Int
   endMinute   Int
 
@@ -956,7 +991,7 @@ model Notification {
   tenant      Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   contactId   String
   contact     Contact                @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  category    String                 // the source event name / type
+  category    String // the source event name / type
   title       String
   body        String
   importance  NotificationImportance @default(NORMAL)
@@ -1236,9 +1271,9 @@ model LocationPing {
 // the existing ValueLedgerEntry.agent tag. Only two new tables are needed.
 
 enum AgentAuthority {
-  SUGGEST     // produce recommendations only, no side effects
-  APPROVE     // act but require human approval for consequential actions
-  AUTONOMOUS  // act within permissions
+  SUGGEST // produce recommendations only, no side effects
+  APPROVE // act but require human approval for consequential actions
+  AUTONOMOUS // act within permissions
 }
 
 enum AgentTaskStatus {
@@ -1333,15 +1368,15 @@ model AgentApproval {
   tenantId        String
   tenant          Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   agentKey        String
-  taskId          String?             // AgentTask that requested it (scalar ref, like AgentTask's own refs)
+  taskId          String? // AgentTask that requested it (scalar ref, like AgentTask's own refs)
   toolName        String
   toolArgs        Json                @default("{}") // schema-validated at creation
   reason          String?
   confidence      Float?
-  authority       AgentAuthority      // authority level in force when requested
+  authority       AgentAuthority // authority level in force when requested
   status          AgentApprovalStatus @default(PENDING)
   expiresAt       DateTime
-  approvedById    String?             // User.id of the human who resolved it
+  approvedById    String? // User.id of the human who resolved it
   approvedAt      DateTime?
   executedAt      DateTime?
   executionResult Json?
@@ -1361,11 +1396,11 @@ model AiUsageEvent {
   id         String   @id @default(cuid())
   tenantId   String
   tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  provider   String   // e.g. "anthropic"
-  model      String   // exact model id used for the call
+  provider   String // e.g. "anthropic"
+  model      String // exact model id used for the call
   tokensIn   Int
   tokensOut  Int
-  costMicros BigInt?  // null when pricing is not configured
+  costMicros BigInt? // null when pricing is not configured
   agentKey   String?
   taskId     String?
   createdAt  DateTime @default(now())
@@ -1413,15 +1448,15 @@ model Dashboard {
 
 /// A widget on a dashboard — a KPI, chart, leaderboard, or custom metric.
 model DashboardWidget {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   tenantId    String
   dashboardId String
   dashboard   Dashboard @relation(fields: [dashboardId], references: [id], onDelete: Cascade)
-  kind        String   // kpi/timeseries/leaderboard/table
+  kind        String // kpi/timeseries/leaderboard/table
   title       String
   metricKey   String
-  config      Json     @default("{}")
-  position    Int      @default(0)
+  config      Json      @default("{}")
+  position    Int       @default(0)
 
   @@index([tenantId, dashboardId])
 }
@@ -1430,7 +1465,7 @@ model DashboardWidget {
 model Prediction {
   id          String   @id @default(cuid())
   tenantId    String
-  type        String   // revenue_forecast/churn/clv/no_show/anomaly/...
+  type        String // revenue_forecast/churn/clv/no_show/anomaly/...
   subjectType String?
   subjectId   String?
   value       Decimal? @db.Decimal(14, 2)
@@ -1446,19 +1481,19 @@ model Prediction {
 
 /// A report definition (ad-hoc or scheduled) for the reporting engine.
 model ReportDefinition {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   tenantId   String
   key        String
   name       String
-  type       String   // revenue/operations/sales/executive/custom
-  format     String   @default("json") // json/csv
+  type       String // revenue/operations/sales/executive/custom
+  format     String    @default("json") // json/csv
   schedule   String? // cron expression (scheduled reports)
-  config     Json     @default("{}")
-  recipients String[] @default([])
-  enabled    Boolean  @default(true)
+  config     Json      @default("{}")
+  recipients String[]  @default([])
+  enabled    Boolean   @default(true)
   lastRunAt  DateTime?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   @@unique([tenantId, key])
 }
@@ -1485,7 +1520,7 @@ model ConsentRecord {
   id        String   @id @default(cuid())
   tenantId  String
   contactId String
-  type      String   // marketing/sms/email/data_processing
+  type      String // marketing/sms/email/data_processing
   granted   Boolean
   source    String?
   at        DateTime @default(now())
@@ -1509,7 +1544,7 @@ model Organization {
 model Feedback {
   id          String   @id @default(cuid())
   tenantId    String
-  subjectType String   // agent/job/decision/conversation
+  subjectType String // agent/job/decision/conversation
   subjectId   String?
   agentKey    String?
   decisionId  String?
@@ -1582,32 +1617,32 @@ model WorkflowRun {
 
 /// A publishable marketplace item (AI employee, workflow, template, integration).
 model MarketplaceListing {
-  id            String   @id @default(cuid())
-  key           String   @unique
-  type          String // agent/workflow/template/integration/dashboard
-  name          String
-  description   String?
-  version       String   @default("1.0.0")
-  priceCents    Int      @default(0) // 0 = free
+  id             String   @id @default(cuid())
+  key            String   @unique
+  type           String // agent/workflow/template/integration/dashboard
+  name           String
+  description    String?
+  version        String   @default("1.0.0")
+  priceCents     Int      @default(0) // 0 = free
   authorTenantId String?
-  status        String   @default("published") // draft/published
-  ratingAvg     Float    @default(0)
-  ratingCount   Int      @default(0)
-  downloads     Int      @default(0)
-  metadata      Json     @default("{}")
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  status         String   @default("published") // draft/published
+  ratingAvg      Float    @default(0)
+  ratingCount    Int      @default(0)
+  downloads      Int      @default(0)
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@index([type, status])
 }
 
 model MarketplaceInstall {
-  id        String   @id @default(cuid())
-  tenantId  String
-  listingId String
+  id         String   @id @default(cuid())
+  tenantId   String
+  listingId  String
   listingKey String
-  version   String
-  createdAt DateTime @default(now())
+  version    String
+  createdAt  DateTime @default(now())
 
   @@unique([tenantId, listingId])
   @@index([tenantId])
@@ -1726,22 +1761,22 @@ model RefreshToken {
 /// One structured identity record per tenant. Timezone deliberately stays on
 /// Tenant (single source — /tenants/profile updates it); this holds the rest.
 model CompanyProfile {
-  id           String   @id @default(cuid())
-  tenantId     String   @unique
-  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  legalName    String?
-  brandName    String?
-  tagline      String?
-  mission      String?
-  vision       String?
-  brandVoice   String? // how every AI employee should sound
-  targetMarket String?
-  workingHours  Json    @default("{}") // { mon: {open,close}, … } — display + agent context
-  locations     Json    @default("[]") // [{ label, address, phone? }]
-  businessRules Json    @default("[]") // ["Never discount more than 10%", …] — injected into agent context
-  updatedById  String? // User.id of last editor (scalar ref)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id            String   @id @default(cuid())
+  tenantId      String   @unique
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  legalName     String?
+  brandName     String?
+  tagline       String?
+  mission       String?
+  vision        String?
+  brandVoice    String? // how every AI employee should sound
+  targetMarket  String?
+  workingHours  Json     @default("{}") // { mon: {open,close}, … } — display + agent context
+  locations     Json     @default("[]") // [{ label, address, phone? }]
+  businessRules Json     @default("[]") // ["Never discount more than 10%", …] — injected into agent context
+  updatedById   String? // User.id of last editor (scalar ref)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 enum GoalStatus {
@@ -1797,19 +1832,19 @@ enum KpiDirection {
 /// read time; a null metricKey means values are entered manually. Values are
 /// never invented — a KPI with no data reports null, not zero-padding.
 model Kpi {
-  id           String        @id @default(cuid())
+  id           String       @id @default(cuid())
   tenantId     String
-  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   name         String
   unit         String? // "$", "%", "leads", …
-  direction    KpiDirection  @default(UP_IS_GOOD)
+  direction    KpiDirection @default(UP_IS_GOOD)
   metricKey    String? // platform metric source; null = manual entry
   currentValue Float?
   targetValue  Float?
   goalId       String?
-  goal         Goal?         @relation(fields: [goalId], references: [id], onDelete: SetNull)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  goal         Goal?        @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
   snapshots KpiSnapshot[]
 
@@ -1827,4 +1862,206 @@ model KpiSnapshot {
   capturedAt DateTime @default(now())
 
   @@index([tenantId, kpiId, capturedAt])
+}
+
+// ═══════════════════ Commercial Operating Layer (Sprint 2) ═══════════════════
+// Marketing campaigns, social content planning, reviews/reputation and
+// closed-loop attribution. All additive: nothing above changes shape.
+// HONESTY CONTRACT: SENT/PUBLISHED statuses are only set when a real provider
+// (or an explicit human confirmation) stands behind them — never simulated.
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+enum CampaignChannel {
+  SMS
+  EMAIL
+}
+
+enum CampaignRecipientStatus {
+  PENDING
+  SENT // provider accepted the message
+  FAILED // provider rejected / errored (sanitized error stored)
+  SKIPPED // no usable phone/email for the channel
+}
+
+enum SocialPostStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  SCHEDULED
+  PUBLISHED // only with provider confirmation OR explicit manual confirmation
+  FAILED
+  CANCELLED
+}
+
+enum ReviewSource {
+  GOOGLE
+  FACEBOOK
+  YELP
+  DIRECT // collected by us (portal / request link)
+  OTHER
+}
+
+enum ReviewResponseStatus {
+  NEEDS_RESPONSE
+  DRAFTED
+  RESPONDED
+  DISMISSED
+}
+
+enum ReviewRequestStatus {
+  DRAFT
+  SENT
+  FAILED
+  COMPLETED // a review came back from this request
+}
+
+/// How confidently a value-ledger entry (or derived metric) traces to a cause.
+enum AttributionKind {
+  DIRECT // deterministic link (e.g. payment on an invoice from this flow)
+  ASSISTED // a tracked touchpoint participated but wasn't the only one
+  ESTIMATED // inferred via a heuristic (labeled as such in the UI)
+  UNATTRIBUTED // real value, no known cause
+  UNKNOWN // recorded before attribution existed
+}
+
+/// Marketing V1: one outbound campaign to a real contact segment.
+model Campaign {
+  id           String          @id @default(cuid())
+  tenantId     String
+  tenant       Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name         String
+  description  String?
+  channel      CampaignChannel
+  status       CampaignStatus  @default(DRAFT)
+  subject      String? // EMAIL only
+  content      String          @default("")
+  // Audience filter: { tags?: string[], stages?: string[], q?: string }.
+  // Resolved against REAL contacts at send time — recipients are materialized
+  // into CampaignRecipient rows so results are auditable.
+  audience     Json            @default("{}")
+  goalId       String? // Business Brain goal this campaign serves
+  isTemplate   Boolean         @default(false)
+  createdById  String?
+  approvedById String?
+  approvedAt   DateTime?
+  scheduledAt  DateTime?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  meta         Json            @default("{}")
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  recipients CampaignRecipient[]
+  leads      Lead[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, isTemplate])
+}
+
+/// One materialized send per contact per campaign — the audit trail of what
+/// was actually attempted and what the provider said.
+model CampaignRecipient {
+  id         String                  @id @default(cuid())
+  tenantId   String
+  tenant     Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  campaignId String
+  campaign   Campaign                @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contactId  String
+  contact    Contact                 @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  status     CampaignRecipientStatus @default(PENDING)
+  error      String? // sanitized provider error, never raw secrets
+  sentAt     DateTime?
+  createdAt  DateTime                @default(now())
+
+  @@unique([campaignId, contactId])
+  @@index([tenantId, campaignId, status])
+}
+
+/// Social Media V1: a planned/approved piece of content. Publishing is honest:
+/// PUBLISHED requires provider confirmation (none integrated yet) or an
+/// explicit human "I posted this manually" confirmation recorded in publishNote.
+model SocialPost {
+  id           String           @id @default(cuid())
+  tenantId     String
+  tenant       Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  platform     String // "facebook" | "instagram" | "linkedin" | ...
+  caption      String           @default("")
+  // References to media (URLs / object keys) — no binary storage here.
+  mediaRefs    Json             @default("[]")
+  status       SocialPostStatus @default(DRAFT)
+  scheduledFor DateTime?
+  publishedAt  DateTime?
+  publishNote  String? // e.g. "Marked published manually by <user>"
+  campaignId   String? // scalar ref — campaign relationship
+  goalId       String?
+  assignedToId String? // staff owner (scalar ref)
+  agentKey     String? // AI employee assigned, if any
+  createdById  String?
+  approvedById String?
+  approvedAt   DateTime?
+  meta         Json             @default("{}")
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([tenantId, status])
+  @@index([tenantId, scheduledFor])
+}
+
+/// Reviews V1: an outbound "please review us" request to a real contact.
+model ReviewRequest {
+  id        String              @id @default(cuid())
+  tenantId  String
+  tenant    Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contactId String
+  contact   Contact             @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  channel   Channel             @default(SMS)
+  message   String
+  status    ReviewRequestStatus @default(DRAFT)
+  jobId     String? // the completed job/visit that prompted it
+  sentAt    DateTime?
+  error     String? // sanitized send failure
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+
+  reviews Review[]
+
+  @@index([tenantId, status])
+}
+
+/// Reviews V1: a review the business received. External-platform publishing is
+/// NOT integrated — responses are drafted/approved here and posting on the
+/// platform is a tracked manual step (honest boundary for future providers).
+model Review {
+  id                 String               @id @default(cuid())
+  tenantId           String
+  tenant             Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contactId          String?
+  contact            Contact?             @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  requestId          String?
+  request            ReviewRequest?       @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  source             ReviewSource         @default(DIRECT)
+  rating             Int // 1–5, validated in the service
+  text               String?
+  reviewedAt         DateTime             @default(now())
+  responseStatus     ReviewResponseStatus @default(NEEDS_RESPONSE)
+  responseDraft      String? // AI-assisted draft awaiting human approval
+  responseText       String? // what was actually sent/posted
+  respondedAt        DateTime?
+  respondedById      String?
+  followUpActivityId String? // internal follow-up task (Activity.id)
+  meta               Json                 @default("{}")
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  @@index([tenantId, responseStatus])
+  @@index([tenantId, rating])
+  @@index([tenantId, reviewedAt])
 }

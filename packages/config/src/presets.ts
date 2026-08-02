@@ -1,4 +1,4 @@
-import { IndustryKey } from './types';
+import { IndustryKey, LeadStage, OperatingCore, StageLabel } from './types';
 
 /**
  * Industry Presets — Phase 1 of the Sofilic blueprint.
@@ -22,11 +22,35 @@ export interface PresetNavGroup {
   links: PresetNavItem[];
 }
 
+/** A KPI seeded (with the user's consent, during onboarding) for a preset. */
+export interface PresetKpiDefault {
+  name: string;
+  /** Platform metric key (AnalyticsService) — real data only; null = manual. */
+  metricKey: string | null;
+  unit?: string;
+  direction?: 'UP_IS_GOOD' | 'DOWN_IS_GOOD';
+  /** Suggested target — always shown as editable, never silently applied. */
+  suggestedTarget?: number;
+}
+
+/** One onboarding question a preset asks to configure the tenant. */
+export interface PresetOnboardingQuestion {
+  key: string;
+  label: string;
+  type: 'text' | 'select' | 'multiselect' | 'boolean';
+  options?: string[];
+  /** Where the answer lands: 'profile.services', 'settings.<path>', 'goal'. */
+  maps: string;
+  optional?: boolean;
+}
+
 export interface IndustryPreset {
   /** Stable key persisted in Tenant.settings.onboarding.presetKey. */
   key: string;
   /** The engine (existing IndustryModule enum value) this preset runs on. */
   engine: IndustryKey;
+  /** Which of the five technical operating cores this preset runs on. */
+  core: OperatingCore;
   label: string;
   tagline: string;
   icon: string;
@@ -38,6 +62,26 @@ export interface IndustryPreset {
   workspaces: string[];
   /** Module keys that must never render for this preset. */
   hiddenModules: string[];
+
+  // ── Sprint 2 runtime schema — drives the whole in-app experience ──────────
+  /** Product modules enabled for this industry (frozen-nav keys). */
+  modules: string[];
+  /** Dashboard widget keys in display order — the industry-driven dashboard. */
+  dashboardWidgets: string[];
+  /** CRM/product terminology (merged over labels; alias kept for clarity). */
+  terminology: Record<string, string>;
+  /** Pipeline stage labels/colors for this specific trade (over engine pipeline). */
+  pipelineStages?: StageLabel<LeadStage>[];
+  /** Engine automation preset keys recommended for this industry. */
+  automationTemplates: string[];
+  /** Recommended workflow recipe keys (informational until authored). */
+  workflows: string[];
+  /** KPI defaults offered during onboarding (real metric keys only). */
+  kpiDefaults: PresetKpiDefault[];
+  /** AI employee roster keys recommended for this industry (approval-first). */
+  aiEmployees: string[];
+  /** Preset-driven onboarding questions. */
+  onboarding: { questions: PresetOnboardingQuestion[] };
 }
 
 /** Shared nav groups every preset gets (Part 5 fixed skeleton). */
@@ -100,6 +144,44 @@ const fieldOps = (pipelineLabel: string): PresetNavGroup => ({
 const FIELD_HIDDEN = ['chairs', 'appointments', 'patrol', 'sites', 'leases', 'units', 'matters', 'classes', 'boarding'];
 const FIELD_WORKSPACES = ['reviews', 'communication', 'documents', 'automation', 'analytics', 'ai-workforce', 'voice', 'marketing'];
 
+// ── Sprint 2 shared runtime defaults ─────────────────────────────────────────
+// Frozen-nav module keys every industry gets; presets subtract via hiddenModules
+// and industry-specific removals — never by inventing new top-level modules.
+const ALL_MODULES = ['crm', 'sales', 'conversations', 'voice-ai', 'marketing', 'social', 'websites', 'seo', 'automation', 'payments'];
+
+/** Default dashboard widget order — trimmed per industry below. */
+const CORE_WIDGETS = [
+  'morningBrief', 'needsAttention', 'revenueSnapshot', 'kpis', 'goals',
+  'pipeline', 'conversations', 'reviews', 'aiInsights', 'aiWorkforce',
+  'automationHealth', 'payments', 'customerActivity', 'quickActions', 'nextActions',
+];
+
+const FIELD_KPIS: PresetKpiDefault[] = [
+  { name: 'Monthly revenue', metricKey: 'revenue', unit: '$', direction: 'UP_IS_GOOD' },
+  { name: 'New leads (30d)', metricKey: 'leads_new', unit: 'leads', direction: 'UP_IS_GOOD' },
+  { name: 'Jobs completed (30d)', metricKey: 'jobs_completed', unit: 'jobs', direction: 'UP_IS_GOOD' },
+  { name: 'Lead conversion rate', metricKey: 'conversion_rate', unit: '%', direction: 'UP_IS_GOOD' },
+  { name: 'Average job value', metricKey: 'avg_job_value', unit: '$', direction: 'UP_IS_GOOD' },
+];
+
+const FIELD_ONBOARDING: PresetOnboardingQuestion[] = [
+  { key: 'services', label: 'Which services do you offer?', type: 'text', maps: 'profile.services' },
+  { key: 'serviceArea', label: 'What areas do you serve?', type: 'text', maps: 'profile.locations' },
+  { key: 'emergency', label: 'Do you take emergency / after-hours calls?', type: 'boolean', maps: 'settings.emergencyService' },
+  { key: 'mainGoal', label: 'What is your #1 business goal right now?', type: 'text', maps: 'goal', optional: true },
+  { key: 'reviewAsk', label: 'Ask customers for a review after completed work?', type: 'boolean', maps: 'settings.reviewProcess.autoAsk', optional: true },
+];
+
+/** Colors follow the design system; per-trade labels come from the builder. */
+const fieldStages = (labels: Partial<Record<string, string>> = {}): StageLabel<LeadStage>[] => [
+  { value: 'NEW', label: labels.NEW ?? 'New Request', color: '#60a5fa' },
+  { value: 'CONTACTED', label: labels.CONTACTED ?? 'Contacted', color: '#fbbf24' },
+  { value: 'QUALIFIED', label: labels.QUALIFIED ?? 'Quoted', color: '#a78bfa' },
+  { value: 'BOOKED', label: labels.BOOKED ?? 'Booked', color: '#34d399' },
+  { value: 'COMPLETED', label: labels.COMPLETED ?? 'Completed', color: '#10b981' },
+  { value: 'LOST', label: labels.LOST ?? 'Lost', color: '#f87171', hidden: true },
+];
+
 /** Compact builder for the 14 field-service presets — same engine, different words. */
 function fieldPreset(
   key: string,
@@ -108,10 +190,12 @@ function fieldPreset(
   tagline: string,
   pipelineLabel = 'Pipeline',
   extraLabels: Record<string, string> = {},
+  overrides: Partial<IndustryPreset> = {},
 ): IndustryPreset {
   return {
     key,
     engine: 'FIELD_SERVICES',
+    core: 'DISPATCH',
     label,
     tagline,
     icon,
@@ -127,6 +211,16 @@ function fieldPreset(
     ],
     workspaces: FIELD_WORKSPACES,
     hiddenModules: FIELD_HIDDEN,
+    modules: ALL_MODULES,
+    dashboardWidgets: CORE_WIDGETS,
+    terminology: { lead: pipelineLabel.replace(/s$/, ''), pipeline: pipelineLabel, customer: 'Customer', job: 'Job', ...extraLabels },
+    pipelineStages: fieldStages({ NEW: `New ${pipelineLabel.replace(/s$/, '')}` }),
+    automationTemplates: ['missed_call_text_back', 'emergency_dispatch', 'post_job_review', 'seasonal_reengage'],
+    workflows: ['post_job_review', 'seasonal_reengage'],
+    kpiDefaults: FIELD_KPIS,
+    aiEmployees: ['receptionist', 'sales', 'operations_manager', 'customer_success', 'collections', 'marketing'],
+    onboarding: { questions: FIELD_ONBOARDING },
+    ...overrides,
   };
 }
 
@@ -152,6 +246,7 @@ export const INDUSTRY_PRESETS: Record<string, IndustryPreset> = {
   property_management: {
     key: 'property_management',
     engine: 'PROPERTY_MANAGEMENT',
+    core: 'COVERAGE',
     label: 'Real Estate',
     tagline: 'Leasing, property management, brokerages and investors — tenant requests, vendor dispatch and owner reporting in one place.',
     icon: '🏢',
@@ -174,10 +269,38 @@ export const INDUSTRY_PRESETS: Record<string, IndustryPreset> = {
     ],
     workspaces: ['reviews', 'communication', 'documents', 'automation', 'analytics', 'ai-workforce', 'voice'],
     hiddenModules: ['chairs', 'appointments', 'patrol', 'classes', 'boarding', 'quotes'],
+    modules: ALL_MODULES.filter((m) => m !== 'social'),
+    dashboardWidgets: CORE_WIDGETS.filter((w) => w !== 'reviews'),
+    terminology: { lead: 'Maintenance Request', pipeline: 'Maintenance Requests', customer: 'Tenant', job: 'Work Order' },
+    pipelineStages: [
+      { value: 'NEW', label: 'New Request', color: '#60a5fa' },
+      { value: 'CONTACTED', label: 'Acknowledged', color: '#fbbf24' },
+      { value: 'QUALIFIED', label: 'Triaged', color: '#a78bfa' },
+      { value: 'BOOKED', label: 'Vendor Assigned', color: '#34d399' },
+      { value: 'COMPLETED', label: 'Resolved', color: '#10b981' },
+      { value: 'LOST', label: 'Cancelled', color: '#f87171', hidden: true },
+    ],
+    automationTemplates: ['route_request', 'emergency_contractor', 'rent_reminder', 'resolution_followup'],
+    workflows: ['rent_reminder', 'resolution_followup'],
+    kpiDefaults: [
+      { name: 'Monthly revenue', metricKey: 'revenue', unit: '$', direction: 'UP_IS_GOOD' },
+      { name: 'New requests (30d)', metricKey: 'leads_new', unit: 'requests', direction: 'UP_IS_GOOD' },
+      { name: 'Work orders completed (30d)', metricKey: 'jobs_completed', unit: 'orders', direction: 'UP_IS_GOOD' },
+      { name: 'Open work orders', metricKey: 'jobs_open', unit: 'orders', direction: 'DOWN_IS_GOOD' },
+    ],
+    aiEmployees: ['receptionist', 'operations_manager', 'customer_success', 'collections'],
+    onboarding: {
+      questions: [
+        { key: 'portfolio', label: 'How many units/properties do you manage?', type: 'text', maps: 'settings.portfolioSize' },
+        { key: 'services', label: 'What property services do you provide?', type: 'text', maps: 'profile.services' },
+        { key: 'mainGoal', label: 'What is your #1 business goal right now?', type: 'text', maps: 'goal', optional: true },
+      ],
+    },
   },
   service_agencies: {
     key: 'service_agencies',
     engine: 'SERVICE_AGENCIES',
+    core: 'CASE',
     label: 'Professional Services',
     tagline: 'Client work, cases and retainers for law firms, accountants, consultants and agencies.',
     icon: '💼',
@@ -199,6 +322,33 @@ export const INDUSTRY_PRESETS: Record<string, IndustryPreset> = {
     ],
     workspaces: ['reviews', 'communication', 'documents', 'automation', 'analytics', 'ai-workforce'],
     hiddenModules: ['chairs', 'appointments', 'patrol', 'classes', 'boarding', 'dispatch', 'field-app'],
+    modules: ALL_MODULES.filter((m) => m !== 'voice-ai'),
+    dashboardWidgets: CORE_WIDGETS,
+    terminology: { lead: 'Engagement', pipeline: 'Engagements', customer: 'Client', job: 'Matter' },
+    pipelineStages: [
+      { value: 'NEW', label: 'New Inquiry', color: '#60a5fa' },
+      { value: 'CONTACTED', label: 'Consultation', color: '#fbbf24' },
+      { value: 'QUALIFIED', label: 'Proposal Sent', color: '#a78bfa' },
+      { value: 'BOOKED', label: 'Retained', color: '#34d399' },
+      { value: 'COMPLETED', label: 'Delivered', color: '#10b981' },
+      { value: 'LOST', label: 'Declined', color: '#f87171', hidden: true },
+    ],
+    automationTemplates: ['intake_sequence', 'doc_collection', 'consult_no_show', 'lost_reengage'],
+    workflows: ['intake_sequence', 'doc_collection'],
+    kpiDefaults: [
+      { name: 'Monthly revenue', metricKey: 'revenue', unit: '$', direction: 'UP_IS_GOOD' },
+      { name: 'New inquiries (30d)', metricKey: 'leads_new', unit: 'inquiries', direction: 'UP_IS_GOOD' },
+      { name: 'Inquiry → retained rate', metricKey: 'conversion_rate', unit: '%', direction: 'UP_IS_GOOD' },
+      { name: 'Pipeline value', metricKey: 'pipeline_value', unit: '$', direction: 'UP_IS_GOOD' },
+    ],
+    aiEmployees: ['receptionist', 'sales', 'customer_success', 'collections', 'executive'],
+    onboarding: {
+      questions: [
+        { key: 'practice', label: 'What services / practice areas do you offer?', type: 'text', maps: 'profile.services' },
+        { key: 'retainer', label: 'Do you work on retainers?', type: 'boolean', maps: 'settings.retainerBilling', optional: true },
+        { key: 'mainGoal', label: 'What is your #1 business goal right now?', type: 'text', maps: 'goal', optional: true },
+      ],
+    },
   },
 };
 

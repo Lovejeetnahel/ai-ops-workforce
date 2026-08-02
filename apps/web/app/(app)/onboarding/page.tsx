@@ -4,9 +4,10 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 
-type StepId = 'confirm' | 'modules' | 'team' | 'first-lead' | 'integrations' | 'employees' | 'command';
+type StepId = 'confirm' | 'business' | 'modules' | 'team' | 'first-lead' | 'integrations' | 'employees' | 'command';
 const STEPS: { id: StepId; label: string }[] = [
   { id: 'confirm', label: 'Confirm business' },
+  { id: 'business', label: 'Configure your business' },
   { id: 'modules', label: 'Your modules' },
   { id: 'team', label: 'Invite your team' },
   { id: 'first-lead', label: 'First lead' },
@@ -47,6 +48,39 @@ export default function OnboardingPage() {
   const [timezone, setTimezone] = useState('');
   const [tzError, setTzError] = useState<string | null>(null);
   const [tzSaving, setTzSaving] = useState(false);
+
+  // Sprint 2: preset-driven business configuration
+  const [answers, setAnswers] = useState<Record<string, any>>({});
+  const [mainGoal, setMainGoal] = useState('');
+  const [acceptedKpis, setAcceptedKpis] = useState<Record<string, boolean>>({});
+  const [kpiTargets, setKpiTargets] = useState<Record<string, string>>({});
+  const [applying, setApplying] = useState(false);
+  const [applyError, setApplyError] = useState<string | null>(null);
+
+  const applyBusinessConfig = async () => {
+    setApplying(true);
+    setApplyError(null);
+    try {
+      const kpis = (config?.preset?.kpiDefaults ?? [])
+        .filter((k: any) => acceptedKpis[k.name])
+        .map((k: any) => ({
+          name: k.name, metricKey: k.metricKey, unit: k.unit, direction: k.direction,
+          targetValue: kpiTargets[k.name] ? Number(kpiTargets[k.name]) : undefined,
+        }));
+      await api.applyOnboarding({
+        answers,
+        mainGoal: mainGoal.trim() || undefined,
+        acceptKpis: kpis,
+        services: answers.services,
+        locations: answers.serviceArea ?? answers.locations,
+      });
+      await goNext('business');
+    } catch (e: any) {
+      setApplyError('Could not save your configuration — you can continue and finish this later in Settings.');
+    } finally {
+      setApplying(false);
+    }
+  };
 
   // team invite form
   const [invName, setInvName] = useState('');
@@ -256,6 +290,56 @@ export default function OnboardingPage() {
           {tzError && <div className="auth-err">{tzError}</div>}
           <p className="muted">{config?.tagline}</p>
           <button className="btn" disabled={tzSaving} onClick={confirmBusiness}>{tzSaving ? 'Saving…' : 'Looks good, continue'}</button>
+        </div>
+      )}
+
+      {STEPS[step].id === 'business' && (
+        <div className="panel">
+          <h3>Configure {tenant?.name ?? 'your business'}</h3>
+          <p className="muted" style={{ fontSize: 13 }}>
+            These answers configure your workspace — terminology, goals and KPIs. Everything is editable later; nothing is required.
+          </p>
+          {(config?.preset?.onboarding?.questions ?? []).map((qn: any) => (
+            <div className="field" key={qn.key}>
+              <label htmlFor={`ob-${qn.key}`}>{qn.label}{qn.optional && <span className="muted"> (optional)</span>}</label>
+              {qn.type === 'boolean' ? (
+                <select id={`ob-${qn.key}`} value={answers[qn.key] ?? ''} onChange={(e) => setAnswers({ ...answers, [qn.key]: e.target.value })}>
+                  <option value="">Choose…</option><option value="yes">Yes</option><option value="no">No</option>
+                </select>
+              ) : qn.type === 'select' ? (
+                <select id={`ob-${qn.key}`} value={answers[qn.key] ?? ''} onChange={(e) => setAnswers({ ...answers, [qn.key]: e.target.value })}>
+                  <option value="">Choose…</option>
+                  {(qn.options ?? []).map((o: string) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              ) : qn.maps === 'goal' ? (
+                <input id={`ob-${qn.key}`} value={mainGoal} onChange={(e) => setMainGoal(e.target.value)} placeholder="e.g. Reach $30k/month by winter" />
+              ) : (
+                <input id={`ob-${qn.key}`} value={answers[qn.key] ?? ''} onChange={(e) => setAnswers({ ...answers, [qn.key]: e.target.value })} />
+              )}
+            </div>
+          ))}
+          {(config?.preset?.kpiDefaults ?? []).length > 0 && (
+            <>
+              <h4 style={{ margin: '14px 0 6px' }}>Track these KPIs? <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>(computed from your real data — pick the ones you want)</span></h4>
+              {(config.preset.kpiDefaults ?? []).map((k: any) => (
+                <div className="agent-row" key={k.name}>
+                  <label style={{ display: 'flex', gap: 8, alignItems: 'center', flex: 1, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={!!acceptedKpis[k.name]} onChange={(e) => setAcceptedKpis({ ...acceptedKpis, [k.name]: e.target.checked })} />
+                    {k.name} {k.unit && <span className="muted">({k.unit})</span>}
+                  </label>
+                  {acceptedKpis[k.name] && (
+                    <input type="number" placeholder="Target (optional)" value={kpiTargets[k.name] ?? ''} style={{ width: 140 }}
+                      onChange={(e) => setKpiTargets({ ...kpiTargets, [k.name]: e.target.value })} />
+                  )}
+                </div>
+              ))}
+            </>
+          )}
+          {applyError && <p style={{ color: '#fca5a5', fontSize: 13 }}>{applyError}</p>}
+          <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+            <button className="btn" onClick={applyBusinessConfig} disabled={applying}>{applying ? 'Saving…' : 'Save & continue'}</button>
+            <button className="btn ghost" onClick={() => goNext('business')}>Skip for now</button>
+          </div>
         </div>
       )}
 
