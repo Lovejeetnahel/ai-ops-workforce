@@ -217,6 +217,17 @@ model Tenant {
   socialPosts        SocialPost[]
   reviews            Review[]
   reviewRequests     ReviewRequest[]
+  voiceAgents        VoiceAgent[]
+  callRecords        CallRecord[]
+  serviceOfferings   ServiceOffering[]
+  bookingLinks       BookingLink[]
+  sites              Site[]
+  sitePages          SitePage[]
+  sitePageRevisions  SitePageRevision[]
+  formSubmissions    FormSubmission[]
+  seoAudits          SeoAudit[]
+  locations          Location[]
+  staffNotifications StaffNotification[]
 
   @@index([industryModule])
 }
@@ -2064,4 +2075,252 @@ model Review {
   @@index([tenantId, responseStatus])
   @@index([tenantId, rating])
   @@index([tenantId, reviewedAt])
+}
+
+// ═══════════════════ Customer Delivery & Growth Layer (Sprint 3) ═══════════════════
+// Voice AI, appointments/services, websites/SEO, staff notifications and
+// multi-location. All additive. HONESTY CONTRACT unchanged: provider-backed
+// statuses only with a real provider (or explicit human confirmation).
+
+enum VoiceAgentMode {
+  INBOUND
+  OUTBOUND
+  BOTH
+}
+
+/// Voice AI V1: a configured phone agent. Phone connectivity is DERIVED from
+/// the real Vapi/Twilio configuration at read time — never stored as a claim.
+model VoiceAgent {
+  id                       String         @id @default(cuid())
+  tenantId                 String
+  tenant                   Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name                     String
+  purpose                  String? // "answer and book service calls"
+  mode                     VoiceAgentMode @default(INBOUND)
+  greeting                 String?
+  instructions             String? // extra call instructions layered over Brain grounding
+  businessHours            Json           @default("{}") // { mon:{open,close}, … }
+  recordingConsentRequired Boolean        @default(true)
+  consentScript            String? // what the agent says to obtain consent
+  enabled                  Boolean        @default(false)
+  locationId               String? // scalar ref (multi-location)
+  createdAt                DateTime       @default(now())
+  updatedAt                DateTime       @updatedAt
+
+  calls CallRecord[]
+
+  @@index([tenantId, enabled])
+}
+
+enum CallStatus {
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  NO_ANSWER
+  HANDED_OFF
+}
+
+/// One real phone call. Created/updated ONLY from provider webhooks or staff
+/// entry — durations, outcomes and costs are never invented.
+model CallRecord {
+  id             String           @id @default(cuid())
+  tenantId       String
+  tenant         Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  voiceAgentId   String?
+  voiceAgent     VoiceAgent?      @relation(fields: [voiceAgentId], references: [id], onDelete: SetNull)
+  conversationId String? // transcript thread (Conversation channel=VOICE)
+  contactId      String? // scalar ref
+  direction      MessageDirection @default(INBOUND)
+  status         CallStatus       @default(IN_PROGRESS)
+  durationSec    Int?
+  summary        String?
+  outcome        String? // "booked", "message taken", "handed off", …
+  recordingUrl   String?
+  consentGiven   Boolean?
+  costUsd        Decimal?         @db.Decimal(10, 4)
+  externalRef    String? // provider call id (idempotency)
+  startedAt      DateTime         @default(now())
+  endedAt        DateTime?
+  meta           Json             @default("{}")
+
+  @@unique([tenantId, externalRef])
+  @@index([tenantId, startedAt])
+  @@index([tenantId, status])
+}
+
+/// Appointments: a bookable service (duration drives slot math in the
+/// EXISTING ScheduleService — no second calendar engine).
+model ServiceOffering {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  durationMin Int      @default(60)
+  priceCents  Int? // optional display price — never fabricated
+  active      Boolean  @default(true)
+  locationId  String? // scalar ref
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  bookingLinks BookingLink[]
+
+  @@index([tenantId, active])
+}
+
+/// Public self-booking link: /book/<slug>. Customers pick a real free slot
+/// (existing availability math); the booking lands as REQUESTED for staff.
+model BookingLink {
+  id          String           @id @default(cuid())
+  tenantId    String
+  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  slug        String           @unique
+  name        String
+  serviceId   String?
+  service     ServiceOffering? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  staffUserId String? // fixed staff member; null = any available
+  active      Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([tenantId, active])
+}
+
+enum SitePageStatus {
+  DRAFT
+  PUBLISHED
+}
+
+/// Websites V1: one site per tenant (V1), pages composed of typed sections.
+model Site {
+  id           String   @id @default(cuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name         String
+  slug         String   @unique // public path: /s/<slug>/<page>
+  // Custom domain is a CONNECTION STATUS, honestly 'not_connected' until DNS
+  // verification exists — never claimed.
+  customDomain String?
+  domainStatus String   @default("not_connected")
+  theme        Json     @default("{}")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  pages SitePage[]
+
+  @@index([tenantId])
+}
+
+model SitePage {
+  id          String         @id @default(cuid())
+  tenantId    String
+  tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  siteId      String
+  site        Site           @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  title       String
+  slug        String
+  // Ordered typed sections: [{type:'hero'|'services'|'testimonials'|'faq'|'contact'|'cta', ...fields}]
+  sections    Json           @default("[]")
+  seo         Json           @default("{}") // {title, description, canonical, noindex, keywords[]}
+  status      SitePageStatus @default(DRAFT)
+  publishedAt DateTime?
+  updatedById String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  revisions   SitePageRevision[]
+  submissions FormSubmission[]
+
+  @@unique([siteId, slug])
+  @@index([tenantId, status])
+}
+
+/// Revision history: an immutable snapshot per save.
+model SitePageRevision {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  pageId    String
+  page      SitePage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  sections  Json
+  seo       Json     @default("{}")
+  savedById String?
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, pageId, createdAt])
+}
+
+/// A real form submission from a published page → creates a CRM Lead.
+model FormSubmission {
+  id        String    @id @default(cuid())
+  tenantId  String
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  pageId    String?
+  page      SitePage? @relation(fields: [pageId], references: [id], onDelete: SetNull)
+  data      Json      @default("{}")
+  leadId    String? // scalar ref to the created Lead
+  source    String? // utm/campaign attribution captured at submit time
+  createdAt DateTime  @default(now())
+
+  @@index([tenantId, createdAt])
+}
+
+/// SEO V1: one stored audit run (computed from REAL page data; external
+/// search metrics are setup-required and never fabricated).
+model SeoAudit {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  siteId    String? // scalar ref
+  score     Int // 0–100, deterministic rubric
+  results   Json     @default("[]") // [{pageId, check, severity, status, detail}]
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+}
+
+/// Multi-location: a physical/operating location. Optional everywhere —
+/// single-location tenants never see or need this.
+model Location {
+  id            String   @id @default(cuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name          String
+  address       String?
+  phone         String?
+  timezone      String?
+  businessHours Json     @default("{}")
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([tenantId, active])
+}
+
+enum StaffNotificationPriority {
+  NORMAL
+  HIGH
+}
+
+/// Staff-facing notification center (separate from the customer-facing
+/// portal Notification, which stays contact-bound). userId null = visible to
+/// every ADMIN+; set = only that user. Rows are created ONLY from real
+/// domain events (projector) — never synthesized.
+model StaffNotification {
+  id          String                    @id @default(cuid())
+  tenantId    String
+  tenant      Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId      String? // targeted user; null = admin-wide
+  category    String // source event name
+  title       String
+  body        String?
+  href        String? // deep link into the app
+  priority    StaffNotificationPriority @default(NORMAL)
+  read        Boolean                   @default(false)
+  readAt      DateTime?
+  sourceEvent String? // EventLog id
+  createdAt   DateTime                  @default(now())
+
+  @@index([tenantId, userId, read, createdAt])
+  @@index([tenantId, createdAt])
 }
