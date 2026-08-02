@@ -242,6 +242,7 @@ jobs:
         run: |
           node .github/smoke/r4-prod-smoke.mjs
           node .github/smoke/sprint2-prod-smoke.mjs
+          node .github/smoke/sprint3-prod-smoke.mjs
 
       - name: Run on production
         # For mode=smoke this is the tenant cleanup — it must run even when
