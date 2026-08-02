@@ -6,6 +6,7 @@ import { AuthService } from '../auth/auth.service';
 import { AutomationService } from '../automation/automation.service';
 import { getPreset } from '@aiow/config';
 import { ModuleConfigService } from '../common/module-config/module-config.service';
+import { ProviderFactory } from '../integrations/provider-factory.service';
 import { tenantContext } from '../common/tenancy/tenant-context';
 
 /** Bumped whenever the Terms/Privacy content materially changes; recorded on acceptance. */
@@ -28,6 +29,7 @@ export class TenantsService {
     private readonly prisma: PrismaService,
     private readonly automation: AutomationService,
     private readonly moduleConfig: ModuleConfigService,
+    private readonly providers: ProviderFactory,
   ) {}
 
   async provision(dto: {
@@ -212,6 +214,17 @@ export class TenantsService {
       select: { id: true, name: true, email: true, role: true, status: true, createdAt: true, skills: true },
       orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
     });
+  }
+
+  /** Provider readiness for Settings/Apps — no secrets, ever. */
+  async integrationsStatus() {
+    const status = await this.providers.commsStatus(tenantContext.tenantId);
+    return [
+      { key: 'TWILIO', label: 'Twilio (SMS & WhatsApp)', ...status.sms, enables: ['Inbox SMS replies', 'Campaigns', 'Review requests'] },
+      { key: 'SENDGRID', label: 'SendGrid (Email)', ...status.email, enables: ['Email campaigns', 'Password reset delivery', 'Review requests'] },
+      { key: 'VAPI', label: 'Vapi (Voice AI)', ...status.voice, enables: ['Inbound AI phone answering', 'Call transcripts'] },
+      { key: 'STRIPE', label: 'Stripe (Card payments)', ...status.stripe, enables: ['Invoice payment links', 'Card transactions'] },
+    ];
   }
 
   /** Recent audit history for Settings → Audit (read-only). */

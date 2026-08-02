@@ -232,7 +232,12 @@ jobs:
       - name: Authenticated production smoke tests (mode=smoke)
         id: smoke
         if: ${{ inputs.mode == 'smoke' }}
-        run: node .github/smoke/r4-prod-smoke.mjs
+        # Release 4 regression suite first, then the Sprint 2 commercial-layer
+        # suite. Both create only 'ZZ RELEASE VERIFY%' tenants, which the
+        # always-run cleanup step below removes.
+        run: |
+          node .github/smoke/r4-prod-smoke.mjs
+          node .github/smoke/sprint2-prod-smoke.mjs
 
       - name: Run on production
         # For mode=smoke this is the tenant cleanup — it must run even when

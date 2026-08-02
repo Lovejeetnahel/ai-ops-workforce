@@ -120,6 +120,17 @@ export class TenantsController {
     return this.tenants.auditHistory(limit ? parseInt(limit, 10) || 50 : 50);
   }
 
+  /**
+   * Honest integration status for Settings/Apps: configured-or-not per
+   * provider, with the source (tenant vs platform). NEVER returns any secret.
+   */
+  @Get('integrations-status')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
+  integrationsStatus() {
+    return this.tenants.integrationsStatus();
+  }
+
   /** Change the industry preset — same engine only, OWNER only. */
   @Patch('preset')
   @UseGuards(RolesGuard)

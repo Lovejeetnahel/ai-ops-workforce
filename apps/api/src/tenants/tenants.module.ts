@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AutomationModule } from '../automation/automation.module';
+import { IntegrationsModule } from '../integrations/integrations.module';
 import { AgentsModule } from '../agents/agents.module';
 import { TenantsController } from './tenants.controller';
 import { TenantsService } from './tenants.service';
@@ -10,7 +11,7 @@ import { ConfigController } from './config.controller';
 // imports AgentsModule but does not re-export it, so it does not satisfy this
 // on its own — Nest does not propagate providers through unexported imports.
 @Module({
-  imports: [AutomationModule, AgentsModule],
+  imports: [AutomationModule, AgentsModule, IntegrationsModule],
   controllers: [TenantsController, ConfigController],
   providers: [TenantsService],
 })
