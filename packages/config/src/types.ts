@@ -11,6 +11,22 @@ export type IndustryKey =
   | 'PROPERTY_MANAGEMENT'
   | 'SERVICE_AGENCIES';
 
+/**
+ * The five technical operating cores (Sprint 2). Every industry preset runs on
+ * exactly one core; presets are configuration on top — never separate apps.
+ * Today three cores are live (each backed by an existing engine). APPOINTMENT
+ * and COMMERCE are declared so future presets can target them without a
+ * type change, but NO preset claims them until a real engine backs them.
+ */
+export type OperatingCore = 'DISPATCH' | 'APPOINTMENT' | 'COVERAGE' | 'CASE' | 'COMMERCE';
+
+/** Which live engine implements each core today (absent = not yet built). */
+export const CORE_ENGINES: Partial<Record<OperatingCore, IndustryKey>> = {
+  DISPATCH: 'FIELD_SERVICES',
+  COVERAGE: 'PROPERTY_MANAGEMENT',
+  CASE: 'SERVICE_AGENCIES',
+};
+
 /** Generic pipeline stages (mirror Prisma LeadStage); config supplies labels. */
 export type LeadStage =
   | 'NEW'

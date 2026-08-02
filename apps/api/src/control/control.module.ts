@@ -4,6 +4,7 @@ import { DecisionService } from './decision.service';
 import { OutcomePredictor } from './outcome-predictor';
 import { OutcomeEvaluator } from './outcome-evaluator.service';
 import { ValueLedgerService } from './value-ledger.service';
+import { RoiService } from './roi.service';
 import { ControlPlaneService } from './control-plane.service';
 import { ControlController } from './control.controller';
 import { RulePolicy } from './policy/rule.policy';
@@ -27,6 +28,7 @@ import { PolicyRegistry } from './policy/policy.registry';
     OutcomePredictor,
     OutcomeEvaluator,
     ValueLedgerService,
+    RoiService,
     ControlPlaneService,
     RulePolicy,
     ScoredPolicy,

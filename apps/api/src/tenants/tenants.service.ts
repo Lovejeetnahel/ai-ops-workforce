@@ -4,6 +4,8 @@ import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { AuthService } from '../auth/auth.service';
 import { AutomationService } from '../automation/automation.service';
+import { getPreset } from '@aiow/config';
+import { ModuleConfigService } from '../common/module-config/module-config.service';
 import { tenantContext } from '../common/tenancy/tenant-context';
 
 /** Bumped whenever the Terms/Privacy content materially changes; recorded on acceptance. */
@@ -25,6 +27,7 @@ export class TenantsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly automation: AutomationService,
+    private readonly moduleConfig: ModuleConfigService,
   ) {}
 
   async provision(dto: {
@@ -198,5 +201,123 @@ export class TenantsService {
       data: { settings: { ...current, onboardingProgress: merged } },
       select: { settings: true },
     });
+  }
+
+  // ── Sprint 2 additions ────────────────────────────────────────────────
+
+  /** Team roster for Settings (never returns password hashes). */
+  listTeam() {
+    return this.prisma.db.user.findMany({
+      where: { role: { in: ['OWNER', 'ADMIN', 'STAFF'] } },
+      select: { id: true, name: true, email: true, role: true, status: true, createdAt: true, skills: true },
+      orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
+    });
+  }
+
+  /** Recent audit history for Settings → Audit (read-only). */
+  auditHistory(limit = 50) {
+    return this.prisma.db.auditLog.findMany({
+      select: { id: true, actorId: true, action: true, entity: true, entityId: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+      take: Math.max(1, Math.min(200, limit)),
+    });
+  }
+
+  /**
+   * Change the industry preset (OWNER-only at the controller). Only presets
+   * that run on the tenant's EXISTING engine are allowed — switching engines
+   * would change data semantics and is deliberately not supported here.
+   */
+  async changePreset(presetKey: string) {
+    const preset = getPreset(presetKey);
+    if (!preset) throw new BadRequestException(`Unknown preset: ${presetKey}`);
+    const tenant = await this.prisma.db.tenant.findUniqueOrThrow({
+      where: { id: tenantContext.tenantId },
+      select: { industryModule: true, settings: true },
+    });
+    if (preset.engine !== tenant.industryModule)
+      throw new BadRequestException(
+        `The "${preset.label}" preset runs on the ${preset.engine} engine; this workspace runs ${tenant.industryModule}. Presets on a different engine can't be applied to existing data.`,
+      );
+    const settings = { ...((tenant.settings as any) ?? {}), presetKey };
+    const updated = await this.prisma.db.tenant.update({
+      where: { id: tenantContext.tenantId },
+      data: { settings },
+      select: { id: true, settings: true },
+    });
+    this.moduleConfig.invalidate(tenantContext.tenantId);
+    return { id: updated.id, presetKey };
+  }
+
+  /**
+   * Store preset-driven onboarding answers and apply the tenant's explicit
+   * selections: company services/locations onto CompanyProfile, an optional
+   * main goal, and the KPI defaults the user ACCEPTED (never silently all).
+   * Everything is idempotent — re-running never duplicates goals or KPIs.
+   */
+  async applyOnboarding(input: {
+    answers?: Record<string, unknown>;
+    mainGoal?: string;
+    acceptKpis?: { name: string; metricKey: string | null; unit?: string; direction?: string; targetValue?: number }[];
+    services?: string;
+    locations?: string;
+  }) {
+    const tenant = await this.prisma.db.tenant.findUniqueOrThrow({
+      where: { id: tenantContext.tenantId },
+      select: { settings: true },
+    });
+    const current = (tenant.settings as any) ?? {};
+    await this.prisma.db.tenant.update({
+      where: { id: tenantContext.tenantId },
+      data: {
+        settings: {
+          ...current,
+          onboarding: { ...(current.onboarding ?? {}), answers: { ...(current.onboarding?.answers ?? {}), ...(input.answers ?? {}) } },
+        },
+      },
+    });
+
+    // Locations land on the structured CompanyProfile; services stay in the
+    // stored answers (the Business Brain page owns richer service records).
+    if (input.locations?.trim()) {
+      await this.prisma.db.companyProfile.upsert({
+        where: { tenantId: tenantContext.tenantId },
+        update: { locations: [{ label: 'Service area', address: input.locations.trim() }] as any },
+        create: { locations: [{ label: 'Service area', address: input.locations.trim() }] as any } as any,
+      });
+    }
+
+    let goal = null;
+    if (input.mainGoal?.trim()) {
+      const existing = await this.prisma.db.goal.findFirst({
+        where: { title: input.mainGoal.trim() },
+        select: { id: true, tenantId: true },
+      });
+      goal =
+        existing ??
+        (await this.prisma.db.goal.create({
+          data: { title: input.mainGoal.trim(), priority: 'HIGH', status: 'ACTIVE' } as any,
+        }));
+    }
+
+    const createdKpis: string[] = [];
+    for (const k of input.acceptKpis ?? []) {
+      if (!k?.name) continue;
+      const exists = await this.prisma.db.kpi.findFirst({ where: { name: k.name }, select: { id: true, tenantId: true } });
+      if (exists) continue;
+      await this.prisma.db.kpi.create({
+        data: {
+          name: k.name,
+          unit: k.unit ?? null,
+          direction: (k.direction as any) ?? 'UP_IS_GOOD',
+          metricKey: k.metricKey ?? null,
+          targetValue: k.targetValue ?? null,
+          goalId: goal?.id ?? null,
+        } as any,
+      });
+      createdKpis.push(k.name);
+    }
+
+    return { ok: true, goalId: goal?.id ?? null, createdKpis };
   }
 }

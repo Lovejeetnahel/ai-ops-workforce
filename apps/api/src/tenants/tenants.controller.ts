@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { IsArray, IsBoolean, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
 import { IndustryModule, UserRole } from '@prisma/client';
 import { listModules, listPresets } from '@aiow/config';
@@ -100,5 +100,45 @@ export class TenantsController {
   @Roles('STAFF')
   updateOnboarding(@Body() dto: UpdateOnboardingDto) {
     return this.tenants.updateOnboarding(dto);
+  }
+
+  // ── Sprint 2 ─────────────────────────────────────────────────────────
+
+  /** Team roster for Settings (no credentials ever returned). */
+  @Get('team')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
+  team() {
+    return this.tenants.listTeam();
+  }
+
+  /** Recent audit history (read-only) for Settings → Audit. */
+  @Get('audit')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
+  audit(@Query('limit') limit?: string) {
+    return this.tenants.auditHistory(limit ? parseInt(limit, 10) || 50 : 50);
+  }
+
+  /** Change the industry preset — same engine only, OWNER only. */
+  @Patch('preset')
+  @UseGuards(RolesGuard)
+  @Roles('OWNER')
+  changePreset(@Body('presetKey') presetKey: string) {
+    return this.tenants.changePreset(presetKey);
+  }
+
+  /** Apply preset-driven onboarding selections (goal, accepted KPIs, answers). */
+  @Post('onboarding/apply')
+  @UseGuards(RolesGuard)
+  @Roles('OWNER')
+  applyOnboarding(@Body() body: any) {
+    return this.tenants.applyOnboarding({
+      answers: body?.answers,
+      mainGoal: body?.mainGoal,
+      acceptKpis: Array.isArray(body?.acceptKpis) ? body.acceptKpis.slice(0, 12) : undefined,
+      services: body?.services,
+      locations: body?.locations,
+    });
   }
 }

@@ -1,6 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { GoalPriority, GoalStatus } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { EventBus } from '../automation/event-bus';
+import { DomainEvents } from '../automation/events';
+import { tenantContext } from '../common/tenancy/tenant-context';
 import { goalHealth } from './goal-math';
 
 export interface GoalInput {
@@ -24,7 +27,10 @@ export interface GoalInput {
  */
 @Injectable()
 export class GoalsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly bus: EventBus,
+  ) {}
 
   async list(filter?: { status?: GoalStatus; department?: string }) {
     const goals = await this.prisma.db.goal.findMany({
@@ -108,6 +114,14 @@ export class GoalsService {
       // Reaching 100 marks the goal achieved; the reverse never happens silently.
       data: { progress: rounded, ...(rounded === 100 ? { status: 'ACHIEVED' } : {}) },
     });
+    // Sprint 2: goal achievement is an automation-visible domain event.
+    if (rounded === 100) {
+      await this.bus.emit({
+        name: DomainEvents.GOAL_ACHIEVED,
+        tenantId: tenantContext.tenantId,
+        payload: { goal: { id: goal.id, title: goal.title, department: goal.department } },
+      });
+    }
     return this.shape(goal);
   }
 

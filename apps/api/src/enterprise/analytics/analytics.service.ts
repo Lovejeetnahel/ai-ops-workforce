@@ -111,6 +111,13 @@ export class AnalyticsService {
       urgentOpenJobs, pendingApprovals, openTasks, overdueTasks,
       automationRulesEnabled, automationEventsThisWeek,
       aiTasksThisWeek, aiTasksEver,
+      // Sprint 2 additions — all real counts from the new commercial layer.
+      unreadConversations, waitingConversations,
+      reviewsTotal, reviewsAvg, reviewsNeedingResponse,
+      activeCampaigns, campaignsSent30d,
+      socialScheduled, socialPendingApproval,
+      automationFailures7d, agentApprovalsPending,
+      failedPayments30d,
     ] = await Promise.all([
       db.lead.count({ where: { createdAt: { gte: dayStart } } }),
       db.lead.count({ where: { createdAt: { gte: weekAgo } } }),
@@ -138,6 +145,18 @@ export class AnalyticsService {
       db.eventLog.count({ where: { createdAt: { gte: weekAgo } } }),
       db.agentTask.count({ where: { createdAt: { gte: weekAgo } } }),
       db.agentTask.count(),
+      db.conversation.count({ where: { unread: true } }),
+      db.conversation.count({ where: { status: 'WAITING' as any } }),
+      db.review.count(),
+      db.review.aggregate({ _avg: { rating: true } }),
+      db.review.count({ where: { responseStatus: 'NEEDS_RESPONSE' as any } }),
+      db.campaign.count({ where: { status: { in: ['ACTIVE', 'SCHEDULED'] as any }, isTemplate: false } }),
+      db.campaignRecipient.count({ where: { status: 'SENT' as any, sentAt: { gte: new Date(now.getTime() - 30 * 86_400_000) } } }),
+      db.socialPost.count({ where: { status: 'SCHEDULED' as any } }),
+      db.socialPost.count({ where: { status: 'PENDING_APPROVAL' as any } }),
+      db.eventLog.count({ where: { status: 'FAILED' as any, createdAt: { gte: weekAgo } } }),
+      db.agentApproval.count({ where: { status: 'PENDING' as any } }),
+      db.payment.count({ where: { status: 'FAILED' as any, createdAt: { gte: new Date(now.getTime() - 30 * 86_400_000) } } }),
     ]);
 
     const [recentActivity, revenueSeries] = await Promise.all([
@@ -160,7 +179,24 @@ export class AnalyticsService {
         automationRulesEnabled, automationEventsThisWeek,
         aiTasksThisWeek,
       },
-      attention: { overdueInvoices, urgentOpenJobs, pendingApprovals, overdueTasks, openTasks },
+      attention: {
+        overdueInvoices, urgentOpenJobs, pendingApprovals, overdueTasks, openTasks,
+        // Sprint 2 attention feeds — real, actionable, linkable.
+        unreadConversations, waitingConversations,
+        reviewsNeedingResponse,
+        socialPendingApproval,
+        automationFailures7d,
+        agentApprovalsPending,
+        failedPayments30d,
+      },
+      // Sprint 2 widget snapshots (only rendered when the preset enables them).
+      reviews: {
+        total: reviewsTotal,
+        averageRating: reviewsTotal ? Math.round((reviewsAvg._avg.rating ?? 0) * 10) / 10 : null,
+        needsResponse: reviewsNeedingResponse,
+      },
+      marketing: { activeCampaigns, recipientsSent30d: campaignsSent30d },
+      social: { scheduled: socialScheduled, pendingApproval: socialPendingApproval },
       recentActivity,
       revenueSeries,
       modules: {
@@ -169,6 +205,9 @@ export class AnalyticsService {
         conversations: conversationsEver > 0,
         ai: aiTasksEver > 0,
         automation: automationRulesEnabled > 0,
+        reviews: reviewsTotal > 0,
+        marketing: activeCampaigns > 0 || campaignsSent30d > 0,
+        social: socialScheduled + socialPendingApproval > 0,
       },
     };
   }

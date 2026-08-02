@@ -35,7 +35,11 @@ export class ModuleConfigService {
     const merged: ResolvedModuleConfig = {
       ...base,
       ...(preset ? { label: preset.label, tagline: preset.tagline } : {}),
-      labels: { ...base.labels, ...(preset?.labels ?? {}), ...(overrides.labels ?? {}) },
+      // Sprint 2: preset terminology joins the label overlay, and the preset's
+      // trade-specific pipeline stage labels replace the engine defaults
+      // (same generic LeadStage values underneath — pure presentation).
+      labels: { ...base.labels, ...(preset?.labels ?? {}), ...(preset?.terminology ?? {}), ...(overrides.labels ?? {}) },
+      ...(preset?.pipelineStages?.length ? { pipeline: preset.pipelineStages } : {}),
       ...(preset ? { preset } : {}),
     };
 
