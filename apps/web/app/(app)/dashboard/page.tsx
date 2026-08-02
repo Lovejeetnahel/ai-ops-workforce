@@ -82,6 +82,7 @@ export default function Dashboard() {
   // Sprint 2: the industry preset decides which widgets render and in what order.
   const [widgets, setWidgets] = useState<string[] | null>(null);
   const [brief, setBrief] = useState<any>(null);
+  const [apptStats, setApptStats] = useState<any>(null);
   const [bb, setBb] = useState<any>(null); // Business Brain executive (goals/KPIs/insights)
 
   const widgetOn = (key: string) => widgets === null || widgets.includes(key);
@@ -93,6 +94,7 @@ export default function Dashboard() {
     } catch {}
     api.moduleConfig().then((cfg) => setWidgets(cfg?.preset?.dashboardWidgets ?? null)).catch(() => setWidgets(null));
     api.briefing().then(setBrief).catch(() => setBrief(false));
+    api.appointmentStats().then(setApptStats).catch(() => setApptStats(false));
     api.executiveDashboard().then(setBb).catch(() => setBb(false));
     api.overview().then(setOv).catch(() => setOv(false));
     api.currentTenant().then((t) => {
@@ -326,6 +328,13 @@ export default function Dashboard() {
                   <div className="muted">AI Workforce</div>
                   <div className="kpi">{ov.kpis.aiTasksThisWeek}</div>
                   <div className="kpi-delta muted">tasks this week · {ov.attention.agentApprovalsPending} awaiting approval</div>
+                </Link>
+              )}
+              {apptStats && apptStats !== false && (
+                <Link href="/apps/appointments" className="panel" style={{ textDecoration: 'none', color: 'var(--text)' }}>
+                  <div className="muted">Appointments</div>
+                  <div className="kpi">{apptStats.upcoming7d}</div>
+                  <div className="kpi-delta muted">next 7 days · {apptStats.awaitingConfirmation} awaiting confirmation</div>
                 </Link>
               )}
               {widgetOn('automationHealth') && (

@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { compare, hash } from 'bcryptjs';
 import { randomBytes, createHash } from 'node:crypto';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { tenantContext } from '../common/tenancy/tenant-context';
 
 const BCRYPT_ROUNDS = 12;
 const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // matches REFRESH_EXPIRES_IN default
@@ -185,6 +186,47 @@ export class AuthService {
       })
       .catch(() => undefined);
 
+    return { ok: true };
+  }
+
+  // ── Sprint 3: customer-facing security controls ─────────────────────────
+
+  /** Change password: verifies the current one, then revokes every session. */
+  async changePassword(currentPassword: string, newPassword: string) {
+    const userId = tenantContext.get()?.userId;
+    if (!userId) throw new UnauthorizedException('Sign in again to change your password.');
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user?.passwordHash || !(await compare(currentPassword, user.passwordHash)))
+      throw new UnauthorizedException('Current password is incorrect.');
+    const passwordHash = await AuthService.hash(newPassword);
+    await this.prisma.$transaction([
+      this.prisma.user.update({ where: { id: userId }, data: { passwordHash } }),
+      this.prisma.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } }),
+    ]);
+    await this.prisma.auditLog
+      .create({ data: { tenantId: user.tenantId, actorId: userId, action: 'user.password_changed', entity: 'User', entityId: userId, diff: {} } })
+      .catch(() => undefined);
+    return { ok: true, note: 'All sessions were signed out — sign in with the new password.' };
+  }
+
+  /** Active sessions: live refresh tokens (hashes never returned). */
+  async listSessions() {
+    const userId = tenantContext.get()?.userId;
+    if (!userId) throw new UnauthorizedException();
+    const rows = await this.prisma.refreshToken.findMany({
+      where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
+      select: { id: true, createdAt: true, expiresAt: true },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+    return rows.map((r) => ({ ...r, note: 'Session identified by creation time; token values are never stored or shown.' }));
+  }
+
+  async revokeSession(id: string) {
+    const userId = tenantContext.get()?.userId;
+    if (!userId) throw new UnauthorizedException();
+    const res = await this.prisma.refreshToken.updateMany({ where: { id, userId, revokedAt: null }, data: { revokedAt: new Date() } });
+    if (res.count === 0) throw new UnauthorizedException('Session not found or already signed out.');
     return { ok: true };
   }
 }

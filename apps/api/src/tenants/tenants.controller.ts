@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { IsArray, IsBoolean, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
 import { IndustryModule, UserRole } from '@prisma/client';
 import { listModules, listPresets } from '@aiow/config';
@@ -137,6 +137,15 @@ export class TenantsController {
   @Roles('OWNER')
   changePreset(@Body('presetKey') presetKey: string) {
     return this.tenants.changePreset(presetKey);
+  }
+
+  /** Sprint 3 data controls: record an export/deletion request (audited). */
+  @Post('data-request')
+  @UseGuards(RolesGuard)
+  @Roles('OWNER')
+  dataRequest(@Body('type') type: string) {
+    if (type !== 'EXPORT' && type !== 'DELETE') throw new BadRequestException('type must be EXPORT or DELETE');
+    return this.tenants.dataRequest(type);
   }
 
   /** Apply preset-driven onboarding selections (goal, accepted KPIs, answers). */

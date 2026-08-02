@@ -97,6 +97,26 @@ export default function AppsPage() {
       </div>
 
       <div className="panel" style={{ marginBottom: 20 }}>
+        <h3>Workspaces</h3>
+        <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))' }}>
+          <div className="card">
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span className="name">Appointments</span><span className="chip ok">Enabled</span>
+            </div>
+            <div className="meta" style={{ minHeight: 32, margin: '6px 0 10px' }}>Bookings on your real availability, services and public self-booking links.</div>
+            <Link href="/apps/appointments" className="btn ghost sm">Open</Link>
+          </div>
+          <div className="card">
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span className="name">Field Operations</span><span className="chip ok">Enabled</span>
+            </div>
+            <div className="meta" style={{ minHeight: 32, margin: '6px 0 10px' }}>Jobs, dispatch and the field team workspace.</div>
+            <Link href="/apps/field-operations" className="btn ghost sm">Open</Link>
+          </div>
+        </div>
+      </div>
+
+      <div className="panel" style={{ marginBottom: 20 }}>
         <h3>Optional apps</h3>
         <div className="grid">
           {OPTIONAL_APP_STATUS.map((a) => (

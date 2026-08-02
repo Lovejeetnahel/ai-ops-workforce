@@ -306,6 +306,74 @@ export const api = {
   recordOfflinePayment: (documentId: string, body?: { amount?: number; method?: string }) =>
     request<any>(`/payments/record/${documentId}`, { method: 'POST', body: JSON.stringify(body ?? {}) }),
 
+  // ── Sprint 3: Voice AI ──
+  voiceAgents: () => request<any[]>(`/voice-ai/agents`),
+  createVoiceAgent: (body: Record<string, unknown>) => request<any>(`/voice-ai/agents`, { method: 'POST', body: JSON.stringify(body) }),
+  updateVoiceAgent: (id: string, body: Record<string, unknown>) => request<any>(`/voice-ai/agents/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  voiceCalls: () => request<any>(`/voice-ai/calls`),
+  voiceUsage: () => request<any>(`/voice-ai/usage`),
+  callFollowUp: (id: string) => request<any>(`/voice-ai/calls/${id}/follow-up`, { method: 'POST', body: JSON.stringify({}) }),
+  setCallOutcome: (id: string, body: Record<string, unknown>) => request<any>(`/voice-ai/calls/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+
+  // ── Sprint 3: Appointments ──
+  appointments: (params?: { from?: string; to?: string; status?: string }) => {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries(params ?? {})) if (v) q.set(k, String(v));
+    const qs = q.toString();
+    return request<any[]>(`/appointments${qs ? `?${qs}` : ''}`);
+  },
+  appointmentStats: () => request<any>(`/appointments/stats`),
+  offerings: () => request<any[]>(`/appointments/services`),
+  createOffering: (body: Record<string, unknown>) => request<any>(`/appointments/services`, { method: 'POST', body: JSON.stringify(body) }),
+  updateOffering: (id: string, body: Record<string, unknown>) => request<any>(`/appointments/services/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  bookingLinks: () => request<any[]>(`/appointments/links`),
+  createBookingLink: (body: Record<string, unknown>) => request<any>(`/appointments/links`, { method: 'POST', body: JSON.stringify(body) }),
+  toggleBookingLink: (id: string, active: boolean) => request<any>(`/appointments/links/${id}`, { method: 'PATCH', body: JSON.stringify({ active }) }),
+  rescheduleAppointment: (id: string, start: string) => request<any>(`/appointments/${id}/reschedule`, { method: 'POST', body: JSON.stringify({ start }) }),
+  setAppointmentStatus: (id: string, status: string) => request<any>(`/appointments/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  scheduleAvailability: (userId: string, from: string, to: string, duration: number) =>
+    request<any[]>(`/schedule/availability/${userId}?from=${from}&to=${to}&duration=${duration}`),
+
+  // ── Sprint 3: Websites + SEO ──
+  sites: () => request<any[]>(`/websites/sites`),
+  createSite: (name: string) => request<any>(`/websites/sites`, { method: 'POST', body: JSON.stringify({ name }) }),
+  sitePage: (id: string) => request<any>(`/websites/pages/${id}`),
+  createSitePage: (body: Record<string, unknown>) => request<any>(`/websites/pages`, { method: 'POST', body: JSON.stringify(body) }),
+  updateSitePage: (id: string, body: Record<string, unknown>) => request<any>(`/websites/pages/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  publishSitePage: (id: string, publish: boolean) => request<any>(`/websites/pages/${id}/${publish ? 'publish' : 'unpublish'}`, { method: 'POST' }),
+  restoreSiteRevision: (id: string, revisionId: string) => request<any>(`/websites/pages/${id}/restore/${revisionId}`, { method: 'POST' }),
+  aiDraftSiteSection: (body: { type: string; notes?: string }) => request<any>(`/websites/ai-draft-section`, { method: 'POST', body: JSON.stringify(body) }),
+  formSubmissions: () => request<any[]>(`/websites/submissions`),
+  runSeoAudit: () => request<any>(`/seo/audit`, { method: 'POST' }),
+  seoHistory: () => request<any[]>(`/seo/history`),
+  createSeoTask: (body: Record<string, unknown>) => request<any>(`/seo/tasks`, { method: 'POST', body: JSON.stringify(body) }),
+  seoAiRecommendations: () => request<any>(`/seo/ai-recommendations`, { method: 'POST' }),
+
+  // ── Sprint 3: notifications, locations, search, billing, security ──
+  staffNotifications: (params?: { unread?: boolean; category?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.unread) q.set('unread', 'true');
+    if (params?.category) q.set('category', params.category);
+    const qs = q.toString();
+    return request<any[]>(`/notifications${qs ? `?${qs}` : ''}`);
+  },
+  notificationsUnreadCount: () => request<{ count: number }>(`/notifications/unread-count`),
+  markNotificationRead: (id: string) => request<any>(`/notifications/${id}/read`, { method: 'POST' }),
+  markAllNotificationsRead: () => request<any>(`/notifications/read-all`, { method: 'POST' }),
+  locations: () => request<any[]>(`/locations`),
+  createLocation: (body: Record<string, unknown>) => request<any>(`/locations`, { method: 'POST', body: JSON.stringify(body) }),
+  updateLocation: (id: string, body: Record<string, unknown>) => request<any>(`/locations/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  assignUserLocation: (userId: string, locationId: string | null) =>
+    request<any>(`/locations/users/${userId}`, { method: 'PATCH', body: JSON.stringify({ locationId }) }),
+  locationsExecutive: () => request<any>(`/locations/executive`),
+  globalSearch: (q: string) => request<any>(`/search?q=${encodeURIComponent(q)}`),
+  billingUsage: () => request<any>(`/billing/usage`),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<any>(`/auth/change-password`, { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }),
+  sessions: () => request<any[]>(`/auth/sessions`),
+  revokeSession: (id: string) => request<any>(`/auth/sessions/${id}/revoke`, { method: 'POST' }),
+  dataRequest: (type: 'EXPORT' | 'DELETE') => request<any>(`/tenants/data-request`, { method: 'POST', body: JSON.stringify({ type }) }),
+
   // public marketing site (no auth)
   contactUs: (body: { name: string; email: string; company?: string; topic?: string; message: string; website?: string }) =>
     request<{ ok: true }>(`/public/contact`, { method: 'POST', body: JSON.stringify(body) }),

@@ -157,4 +157,46 @@ export class PortalService {
     });
     return { jobId, explanation: reply.text };
   }
+
+  // ── Sprint 3: portal completeness ───────────────────────────────────────
+
+  appointments(contactId: string) {
+    return this.prisma.db.booking.findMany({
+      where: { contactId },
+      select: { id: true, start: true, end: true, status: true, notes: true },
+      orderBy: { start: 'desc' },
+      take: 50,
+    });
+  }
+
+  payments(contactId: string) {
+    return this.prisma.db.payment.findMany({
+      where: { contactId },
+      select: { id: true, amount: true, currency: true, status: true, createdAt: true, document: { select: { id: true, title: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+  }
+
+  reviewRequests(contactId: string) {
+    return this.prisma.db.reviewRequest.findMany({
+      where: { contactId },
+      select: { id: true, channel: true, status: true, sentAt: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    });
+  }
+
+  /** Customer edits their own contact details (audited — customer action trail). */
+  async updateProfile(contactId: string, input: { phone?: string; email?: string }) {
+    const data: any = {};
+    if (input.phone !== undefined) data.phone = String(input.phone).slice(0, 40) || null;
+    if (input.email !== undefined) data.email = String(input.email).slice(0, 200) || null;
+    if (Object.keys(data).length === 0) throw new NotFoundException('Nothing to update');
+    const updated = await this.prisma.db.contact.update({ where: { id: contactId }, data, select: { id: true, name: true, phone: true, email: true } });
+    await this.prisma.db.auditLog.create({
+      data: { actorId: `portal:${contactId}`, action: 'portal.profile_updated', entity: 'Contact', entityId: contactId, diff: data } as any,
+    }).catch(() => undefined);
+    return updated;
+  }
 }

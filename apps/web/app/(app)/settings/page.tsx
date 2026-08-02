@@ -5,7 +5,7 @@ import { api } from '../../../lib/api';
 import { Modal } from '../../../components/Modal';
 import { useToast } from '../../../components/Toast';
 
-const TABS = ['General', 'Team', 'Integrations', 'Industry preset', 'Billing & usage', 'Security & audit'] as const;
+const TABS = ['General', 'Team', 'Locations', 'Integrations', 'Industry preset', 'Billing & usage', 'Security & audit'] as const;
 type Tab = (typeof TABS)[number];
 
 const ROLES = ['STAFF', 'ADMIN'];
@@ -37,6 +37,13 @@ export default function SettingsPage() {
 
   const [presetConfirm, setPresetConfirm] = useState<any>(null);
   const [changingPreset, setChangingPreset] = useState(false);
+  // Sprint 3
+  const [locations, setLocations] = useState<any[] | null>(null);
+  const [newLoc, setNewLoc] = useState({ name: '', address: '', phone: '' });
+  const [usageDetail, setUsageDetail] = useState<any>(null);
+  const [sessions, setSessions] = useState<any[] | null>(null);
+  const [pw, setPw] = useState({ current: '', next: '' });
+  const [pwBusy, setPwBusy] = useState(false);
 
   const load = useCallback(() => {
     api.moduleConfig().then(setConfig).catch(() => {});
@@ -48,11 +55,14 @@ export default function SettingsPage() {
     if (tab === 'Integrations' && integrations === null) api.integrationsStatus().then(setIntegrations).catch(() => setIntegrations([]));
     if (tab === 'Industry preset' && presets.length === 0) api.industryPresets().then(setPresets).catch(() => {});
     if (tab === 'Security & audit' && audit === null) api.auditHistory().then(setAudit).catch(() => setAudit([]));
+    if (tab === 'Security & audit' && sessions === null) api.sessions().then(setSessions).catch(() => setSessions([]));
+    if (tab === 'Locations' && locations === null) api.locations().then(setLocations).catch(() => setLocations([]));
     if (tab === 'Billing & usage') {
       if (!billing) api.billingSummary().then(setBilling).catch(() => setBilling(false));
       if (!usage) api.workforceUsage().then(setUsage).catch(() => setUsage(false));
+      if (!usageDetail) api.billingUsage().then(setUsageDetail).catch(() => setUsageDetail(false));
     }
-  }, [tab, team, integrations, presets.length, audit, billing, usage]);
+  }, [tab, team, integrations, presets.length, audit, billing, usage, sessions, locations, usageDetail]);
 
   const invite = async () => {
     if (!name.trim() || !email.trim()) return;
@@ -168,6 +178,33 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {tab === 'Locations' && (
+        <div className="panel">
+          <h3>Locations</h3>
+          <p className="muted" style={{ fontSize: 12.5 }}>
+            Optional — single-location businesses can ignore this entirely. Locations let you group staff, appointments and pipeline by branch, with a cross-location executive view on the dashboard.
+          </p>
+          {locations === null ? <div className="skeleton" style={{ height: 60 }} /> : (
+            <>
+              {locations.map((l) => (
+                <div className="agent-row" key={l.id}>
+                  <span style={{ flex: 1 }}><strong>{l.name}</strong><span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>{l.address ?? ''}{l.phone ? ` · ${l.phone}` : ''}</span></span>
+                  <button className="btn ghost sm" onClick={async () => { await api.updateLocation(l.id, { active: !l.active }).catch(() => {}); setLocations(null); }}>{l.active ? 'Active' : 'Inactive'}</button>
+                </div>
+              ))}
+              <div className="grid-2" style={{ marginTop: 10 }}>
+                <div className="field"><label>Name</label><input value={newLoc.name} onChange={(e) => setNewLoc({ ...newLoc, name: e.target.value })} placeholder="Downtown branch" /></div>
+                <div className="field"><label>Address</label><input value={newLoc.address} onChange={(e) => setNewLoc({ ...newLoc, address: e.target.value })} /></div>
+              </div>
+              <button className="btn sm" disabled={!newLoc.name.trim()} onClick={async () => {
+                try { await api.createLocation(newLoc); setNewLoc({ name: '', address: '', phone: '' }); setLocations(null); toast.success('Location added'); }
+                catch { toast.error('Could not add the location (owner only)'); }
+              }}>+ Add location</button>
+            </>
+          )}
+        </div>
+      )}
+
       {tab === 'Integrations' && (
         <div className="panel">
           <h3>Integrations</h3>
@@ -241,6 +278,25 @@ export default function SettingsPage() {
               </>
             )}
           </div>
+          <div className="panel" style={{ gridColumn: '1 / -1' }}>
+            <h3>Usage vs plan limits</h3>
+            {usageDetail === null ? <div className="skeleton" style={{ height: 80 }} /> :
+            usageDetail === false ? <p className="muted" style={{ fontSize: 13 }}>Usage unavailable right now.</p> : (
+              <>
+                <p className="muted" style={{ fontSize: 12.5 }}>
+                  Plan: <strong>{usageDetail.plan.name}</strong> · state: <span className="tag">{usageDetail.state}</span>
+                  {usageDetail.state === 'no_subscription' && ' — no subscription on file; nothing is enforced yet.'}
+                </p>
+                <div className="agent-row"><span style={{ flex: 1 }}>Staff seats</span><span className={usageDetail.usage.staffUsers.over ? 'chip err' : 'chip ok'}>{usageDetail.usage.staffUsers.used} / {usageDetail.usage.staffUsers.limit}</span></div>
+                <div className="agent-row"><span style={{ flex: 1 }}>AI tasks this month</span><span className={usageDetail.usage.aiTasksThisMonth.over ? 'chip err' : 'chip ok'}>{usageDetail.usage.aiTasksThisMonth.used} / {usageDetail.usage.aiTasksThisMonth.limit}</span></div>
+                <div className="agent-row"><span style={{ flex: 1 }}>Voice calls / minutes (30d)</span><span className="muted" style={{ fontSize: 12 }}>{usageDetail.usage.voice.calls} calls · {usageDetail.usage.voice.minutes ?? '—'} min</span></div>
+                <div className="agent-row"><span style={{ flex: 1 }}>Messages this month</span><span className="muted" style={{ fontSize: 12 }}>{usageDetail.usage.messagesThisMonth.conversationReplies} replies · {usageDetail.usage.messagesThisMonth.campaignSends} campaign sends</span></div>
+                <div className="agent-row"><span style={{ flex: 1 }}>Locations / API keys</span><span className="muted" style={{ fontSize: 12 }}>{usageDetail.usage.locations.used} · {usageDetail.usage.apiKeys.used}</span></div>
+                <div className="agent-row"><span style={{ flex: 1 }}>Storage</span><span className="muted" style={{ fontSize: 12 }}>{usageDetail.usage.storage.note}</span></div>
+                <p className="muted" style={{ fontSize: 11, marginTop: 6 }}>{usageDetail.billingPortal.note}</p>
+              </>
+            )}
+          </div>
         </div>
       )}
 
@@ -248,7 +304,40 @@ export default function SettingsPage() {
         <div className="grid-2" style={{ alignItems: 'start' }}>
           <div className="panel">
             <h3>Security</h3>
-            <div className="agent-row"><span style={{ flex: 1 }}>Password</span><Link href="/forgot-password" className="btn ghost sm">Reset via email</Link></div>
+            <div style={{ borderBottom: '1px solid rgba(128,128,128,0.2)', paddingBottom: 12, marginBottom: 8 }}>
+              <strong style={{ fontSize: 13 }}>Change password</strong>
+              <div className="grid-2" style={{ marginTop: 6 }}>
+                <input type="password" placeholder="Current password" value={pw.current} onChange={(e) => setPw({ ...pw, current: e.target.value })} />
+                <input type="password" placeholder="New password (10+ chars)" value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} />
+              </div>
+              <button className="btn sm" style={{ marginTop: 8 }} disabled={pwBusy || pw.current.length < 8 || pw.next.length < 10} onClick={async () => {
+                setPwBusy(true);
+                try { const r = await api.changePassword(pw.current, pw.next); toast.success('Password changed', r.note); setPw({ current: '', next: '' }); }
+                catch (e: any) { toast.error('Could not change password', String(e?.message ?? '').replace(/^\d+\s*/, '').slice(0, 160)); }
+                finally { setPwBusy(false); }
+              }}>{pwBusy ? 'Changing…' : 'Change password'}</button>
+              <p className="muted" style={{ fontSize: 11, marginTop: 4 }}>Changing your password signs out every session, everywhere.</p>
+            </div>
+            <div style={{ borderBottom: '1px solid rgba(128,128,128,0.2)', paddingBottom: 12, marginBottom: 8 }}>
+              <strong style={{ fontSize: 13 }}>Active sessions</strong>
+              {sessions === null ? <div className="skeleton" style={{ height: 40, marginTop: 6 }} /> :
+              sessions.length === 0 ? <p className="muted" style={{ fontSize: 12 }}>No other live sessions.</p> : (
+                sessions.map((sn) => (
+                  <div className="agent-row" key={sn.id}>
+                    <span style={{ flex: 1, fontSize: 12 }}>Signed in {new Date(sn.createdAt).toLocaleString()}<span className="muted"> · expires {new Date(sn.expiresAt).toLocaleDateString()}</span></span>
+                    <button className="btn ghost sm" onClick={async () => { await api.revokeSession(sn.id).catch(() => {}); setSessions(null); }}>Sign out</button>
+                  </div>
+                ))
+              )}
+            </div>
+            <div style={{ borderBottom: '1px solid rgba(128,128,128,0.2)', paddingBottom: 12, marginBottom: 8 }}>
+              <strong style={{ fontSize: 13 }}>Data controls (owner)</strong>
+              <p className="muted" style={{ fontSize: 12 }}>Requests are durably recorded and audited; fulfillment is handled by our team — never silently claimed as done.</p>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn ghost sm" onClick={async () => { try { const r = await api.dataRequest('EXPORT'); toast.success('Export requested', r.note); } catch { toast.error('Owner only'); } }}>Request data export</button>
+                <button className="btn ghost sm" onClick={async () => { try { const r = await api.dataRequest('DELETE'); toast.success('Deletion requested', r.note); } catch { toast.error('Owner only'); } }}>Request account deletion</button>
+              </div>
+            </div>
             <div className="agent-row"><span style={{ flex: 1 }}>Sessions</span><span className="muted" style={{ fontSize: 12 }}>Access tokens expire in 15m; refresh tokens are revocable server-side</span></div>
             <div className="agent-row"><span style={{ flex: 1 }}>Tenant isolation</span><span className="muted" style={{ fontSize: 12 }}>Enforced at the database client for every query</span></div>
             <div className="agent-row"><span style={{ flex: 1 }}>Two-factor authentication</span><button className="btn ghost sm" disabled>Coming soon</button></div>

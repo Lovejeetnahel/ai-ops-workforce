@@ -23,6 +23,10 @@ import { InboxModule } from './inbox/inbox.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { MarketingModule } from './marketing/marketing.module';
 import { SocialModule } from './social/social.module';
+import { VoiceAiModule } from './voice/voice-ai.module';
+import { AppointmentsModule } from './appointments/appointments.module';
+import { WebsitesModule } from './websites/websites.module';
+import { WorkspaceModule } from './workspace/workspace.module';
 import { PublicModule } from './public/public.module';
 import { HealthController } from './health.controller';
 
@@ -64,6 +68,10 @@ import { HealthController } from './health.controller';
     ReviewsModule,
     MarketingModule,
     SocialModule,
+    VoiceAiModule,
+    AppointmentsModule,
+    WebsitesModule,
+    WorkspaceModule,
     PublicModule,
   ],
   controllers: [HealthController],
