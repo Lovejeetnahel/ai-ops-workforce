@@ -186,6 +186,11 @@ Branch `sprint/3-customer-delivery-growth`. Additive migrations `20260802222336_
 
 **Honest limitations:** voice agents configure but stay OFF without a real Vapi connection (no simulated calls); no external review/social/Search-Console/domain-DNS integrations (all setup-required); booking-link staff pool = first 5 active staff in V1; plan gating warns/reports but blocks nothing until a real subscription exists; portal payment links depend on Stripe connection.
 
+**Sprint 3 release record (2026-08-02, ✅ DEPLOYED AND VERIFIED):**
+- Merged as **PR #10** (merge commit `ddffa94112683f85e6ae776953e6a387cb6b14fc`), CI green. Sprint commits: `6a2b59c` (schema+migrations), `01d98d1` (backend), `41800c0` (frontend), `95c1a21` (smoke suite + docs).
+- **Production commit: `ddffa94112683f85e6ae776953e6a387cb6b14fc`**, deploy run **#17** `DEPLOY_OK`, restore tag `pre-release-4-20260802-225601` + `.env` backup. All verify_all checks passed first try (migration count now derived from the repo — 10 applied); production logs confirmed the StaffNotifications projector listening on 11 event types and the new `/api/locations` + `/api/search` routes mapped.
+- Final production verification (smoke run **#18**, all green): R4 regression **32/32**, Sprint 2 **32/32 + 2 honest SKIPs** (real SMS provider configured — no live sends from a smoke test), Sprint 3 **26/26 + 1 SKIP**. The Sprint 3 SKIP is itself a discovery: **production's voice provider IS genuinely configured** (`phoneConnected === true`), so the enable-refusal path can't be asserted there — the suite logged the fact instead of faking it. A REAL public self-booking was created against production and reflected in staff stats, then removed with the verify tenants. `vector_dims()` = 1024 for both embedding tables. Cleanup: 6 `ZZ RELEASE VERIFY` tenants deleted, `remaining=0`.
+
 **Sprint 2 release record (2026-08-02, ✅ DEPLOYED AND VERIFIED):**
 - Merged as **PR #9** (merge commit `aaf4d8dafff3813e3d4cc2b9095b0e9c413b35fd`), CI green.
 - **Production commit: `ecb6621781c511396b22f1af8d20a29d30e58cb2`** (merge + one workflow fix), deploy run **#15** `DEPLOY_OK`, restore tag `pre-release-4-20260802-172605` + `.env` backup.
