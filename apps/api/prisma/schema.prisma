@@ -248,6 +248,8 @@ model User {
   // Staff-only: skills/zones used by the Dispatch agent for routing.
   skills             String[]      @default([])
   serviceZones       String[]      @default([])
+  // Sprint 3 multi-location (optional scalar ref).
+  locationId         String?
   hourlyRate         Decimal?      @db.Decimal(10, 2) // labor costing (Value Ledger)
   // If this user is the portal login for a Contact, link them.
   contactId          String?       @unique
@@ -333,6 +335,8 @@ model Lead {
   // set by staff or derived from a linked paid invoice).
   actualValue    Decimal?  @db.Decimal(12, 2)
   wonAt          DateTime?
+  // Sprint 3 multi-location (optional scalar ref; null = tenant-wide).
+  locationId     String?
   // Marketing attribution (Sprint 2): the campaign that produced this lead.
   campaignId     String?
   campaign       Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
@@ -471,6 +475,9 @@ model Booking {
   assignedTo      User?         @relation("BookingAssignee", fields: [assignedToId], references: [id])
   // External calendar event id (Google Calendar) for two-way sync.
   calendarEventId String?
+  // Sprint 3: service being booked + location (optional scalar refs).
+  serviceId       String?
+  locationId      String?
   notes           String?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt

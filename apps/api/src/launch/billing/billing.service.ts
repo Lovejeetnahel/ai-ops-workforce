@@ -66,4 +66,56 @@ export class BillingService {
       revenue: { collected: revenue.totalValue, cost: revenue.totalCost, net: revenue.netValue },
     };
   }
+
+  /**
+   * Sprint 3: REAL usage against plan limits. Every number is a live count
+   * from source-of-truth tables — nothing metered is invented. With no
+   * Subscription row the tenant is honestly reported as 'no_subscription'
+   * (limits shown from the Starter plan for context, nothing enforced), and
+   * Stripe billing-portal access is setup-required until Stripe is connected.
+   */
+  async usage() {
+    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const db = this.prisma.db;
+    const [subscription, staffUsers, aiTasksMonth, callAgg, outboundMsgs, campaignSent, locations, apiKeys] = await Promise.all([
+      this.current(),
+      db.user.count({ where: { role: { in: ['OWNER', 'ADMIN', 'STAFF'] }, status: 'ACTIVE' } }),
+      db.agentTask.count({ where: { createdAt: { gte: monthStart } } }),
+      db.callRecord.aggregate({ where: { startedAt: { gte: monthStart } }, _sum: { durationSec: true }, _count: true }),
+      db.message.count({ where: { direction: 'OUTBOUND', isInternal: false, createdAt: { gte: monthStart } } }),
+      db.campaignRecipient.count({ where: { status: 'SENT', sentAt: { gte: monthStart } } }),
+      db.location.count({ where: { active: true } }),
+      db.apiKey.count(),
+    ]);
+    const plan = PLANS.find((p) => p.key === subscription?.planKey) ?? PLANS[0];
+    const state = !subscription
+      ? 'no_subscription'
+      : subscription.status === 'trialing' && subscription.trialEndsAt && subscription.trialEndsAt < new Date()
+        ? 'trial_expired'
+        : subscription.status;
+    return {
+      state,
+      plan: { key: plan.key, name: plan.name, seats: plan.seats, includedAiTasks: plan.includedAiTasks },
+      subscription,
+      usage: {
+        staffUsers: { used: staffUsers, limit: plan.seats, over: staffUsers > plan.seats },
+        aiTasksThisMonth: { used: aiTasksMonth, limit: plan.includedAiTasks, over: aiTasksMonth > plan.includedAiTasks },
+        voice: { calls: callAgg._count, minutes: callAgg._sum.durationSec != null ? Math.round(Number(callAgg._sum.durationSec) / 60) : null, note: 'Minutes come from provider webhooks only' },
+        messagesThisMonth: { conversationReplies: outboundMsgs, campaignSends: campaignSent },
+        locations: { used: locations },
+        apiKeys: { used: apiKeys },
+        storage: { note: 'Not metered yet — no number is shown rather than a fake one' },
+      },
+      billingPortal: { available: false, note: 'Stripe customer portal requires a connected Stripe billing account — setup required.' },
+    };
+  }
+
+  /** Feature-gate check used by UI/services. Warns honestly, never silently. */
+  async gate(feature: 'staff_seat' | 'ai_task') {
+    const u = await this.usage();
+    if (u.state === 'no_subscription') return { allowed: true, warning: 'No subscription on file — trial behavior, nothing enforced yet.' };
+    if (feature === 'staff_seat' && u.usage.staffUsers.over) return { allowed: false, warning: `Your ${u.plan.name} plan includes ${u.plan.seats} staff seats and you have ${u.usage.staffUsers.used}. Upgrade to add more.` };
+    if (feature === 'ai_task' && u.usage.aiTasksThisMonth.over) return { allowed: false, warning: `You've used ${u.usage.aiTasksThisMonth.used} of ${u.plan.includedAiTasks} included AI tasks this month. Upgrade to continue.` };
+    return { allowed: true };
+  }
 }

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { IsOptional, IsString, MinLength } from 'class-validator';
 import { PortalGuard, currentContactId } from './auth/portal.guard';
 import { PortalService } from './portal.service';
@@ -99,6 +99,27 @@ export class PortalController {
   @Post('assistant')
   assistant(@Body() dto: AssistantDto) {
     return this.portal.assistant(currentContactId(), dto.question);
+  }
+
+  // ── Sprint 3: portal completeness ──────────────────────────────────────
+  @Get('appointments')
+  appointments() {
+    return this.portal.appointments(currentContactId());
+  }
+
+  @Get('payments')
+  payments() {
+    return this.portal.payments(currentContactId());
+  }
+
+  @Get('review-requests')
+  reviewRequests() {
+    return this.portal.reviewRequests(currentContactId());
+  }
+
+  @Patch('profile')
+  updateProfile(@Body() body: { phone?: string; email?: string }) {
+    return this.portal.updateProfile(currentContactId(), body);
   }
 
   @Get('notifications')

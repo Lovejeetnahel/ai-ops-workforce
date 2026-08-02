@@ -333,4 +333,27 @@ export class TenantsService {
 
     return { ok: true, goalId: goal?.id ?? null, createdKpis };
   }
+
+  /**
+   * Sprint 3 data controls: record a data export / account deletion request.
+   * Fulfillment is a manual operator process today (stated in the UI) — the
+   * request is durably recorded (audit trail) and surfaced to admins; nothing
+   * is deleted automatically and no completion is ever claimed falsely.
+   */
+  async dataRequest(type: 'EXPORT' | 'DELETE') {
+    const store = tenantContext.get();
+    await this.prisma.db.auditLog.create({
+      data: { actorId: store?.userId ?? null, action: type === 'EXPORT' ? 'data.export_requested' : 'data.deletion_requested', entity: 'Tenant', entityId: tenantContext.tenantId, diff: {} } as any,
+    });
+    await this.prisma.db.staffNotification.create({
+      data: {
+        category: 'data.request',
+        title: type === 'EXPORT' ? 'Data export requested' : 'ACCOUNT DELETION requested',
+        body: 'Recorded in the audit log. Fulfillment is handled by the operator per the data-controls policy.',
+        href: '/settings',
+        priority: 'HIGH',
+      } as any,
+    });
+    return { ok: true, recorded: type, note: 'Your request is recorded and visible in the audit history. Fulfillment is handled by our team — you will be contacted at your account email.' };
+  }
 }

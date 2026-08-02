@@ -1,8 +1,10 @@
-import { Body, Controller, HttpException, HttpStatus, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpException, HttpStatus, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
 import { Request } from 'express';
 import IORedis from 'ioredis';
 import { AuthService } from './auth.service';
+import { RolesGuard } from '../common/rbac/roles.guard';
+import { Roles } from '../common/rbac/roles.decorator';
 
 class LoginDto {
   @IsEmail() email: string;
@@ -11,6 +13,11 @@ class LoginDto {
 
 class RefreshDto {
   @IsString() refreshToken: string;
+}
+
+class ChangePasswordDto {
+  @IsString() @MinLength(8) currentPassword: string;
+  @IsString() @MinLength(10) newPassword: string;
 }
 
 class LogoutDto {
@@ -58,5 +65,30 @@ export class AuthController {
   @Post('logout')
   logout(@Body() dto: LogoutDto) {
     return this.auth.logout(dto.refreshToken);
+  }
+
+  // ── Sprint 3: customer-facing security controls ─────────────────────────
+
+  /** Change password: verifies the current one, then revokes every session. */
+  @Post('change-password')
+  @UseGuards(RolesGuard)
+  @Roles('STAFF')
+  changePassword(@Body() dto: ChangePasswordDto) {
+    return this.auth.changePassword(dto.currentPassword, dto.newPassword);
+  }
+
+  /** Active sessions = live (unrevoked, unexpired) refresh tokens. */
+  @Get('sessions')
+  @UseGuards(RolesGuard)
+  @Roles('STAFF')
+  sessions() {
+    return this.auth.listSessions();
+  }
+
+  @Post('sessions/:id/revoke')
+  @UseGuards(RolesGuard)
+  @Roles('STAFF')
+  revokeSession(@Param('id') id: string) {
+    return this.auth.revokeSession(id);
   }
 }
