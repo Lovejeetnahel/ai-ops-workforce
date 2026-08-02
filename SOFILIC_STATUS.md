@@ -168,6 +168,12 @@ Branch `sprint/2-commercial-operating-layer`. One coordinated implementation per
 
 **Honest limitations (stated in-product too):** no external review-platform or social publishing integrations (manual-confirm workflows with clean provider seams); campaign delivery beyond provider acceptance, opens and clicks not tracked; campaign revenue attribution is a labeled lead-tag ESTIMATE; scheduled campaigns/social posts require a manual start/confirm (no cron auto-send in V1); notification preferences and 2FA are labeled coming-soon.
 
+**Sprint 2 release record (2026-08-02, ✅ DEPLOYED AND VERIFIED):**
+- Merged as **PR #9** (merge commit `aaf4d8dafff3813e3d4cc2b9095b0e9c413b35fd`), CI green.
+- **Production commit: `ecb6621781c511396b22f1af8d20a29d30e58cb2`** (merge + one workflow fix), deploy run **#15** `DEPLOY_OK`, restore tag `pre-release-4-20260802-172605` + `.env` backup.
+- Deploy run **#13** auto-rolled back — NOT a product bug: the workflow's own verify step had a hardcoded "7 applied migrations" check from Release 4 and Sprint 2 is the 8th; the migration itself applied cleanly and the rollback restored R4 in one pass (`ROLLBACK_HEALTHY`). Fixed in `ecb6621`: the expected count is now derived from the repo's migrations directory, and the five new Sprint 2 tables were added to the table checks. Run **#14** aborted safely on an operator-side malformed SHA input (no server changes).
+- Final production verification (smoke run **#16**, all green): R4 regression suite **32/32** and Sprint 2 suite **32/32 + 2 honest SKIPs** — production has a REAL configured SMS provider, so the suite deliberately did not send a live campaign and could not assert the 503 setup-required path (both facts logged). `vector_dims()` = 1024 for both KnowledgeChunk and EntityMemory. All 4 `ZZ RELEASE VERIFY` tenants deleted, `remaining=0`.
+
 ---
 
 ## 4. Known repo facts (avoid re-discovering these every session)
