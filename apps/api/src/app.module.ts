@@ -1,5 +1,8 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { PrismaModule } from './common/prisma/prisma.module';
+import { EntitlementsModule } from './common/entitlements/entitlements.module';
+import { WebhookLedgerModule } from './common/webhooks/webhook-ledger.module';
+import { CommerceModule } from './commerce/commerce.module';
 import { TenantMiddleware } from './common/tenancy/tenant.middleware';
 import { EventBusModule } from './automation/event-bus.module';
 import { IntegrationsModule } from './integrations/integrations.module';
@@ -46,6 +49,8 @@ import { HealthController } from './health.controller';
 @Module({
   imports: [
     PrismaModule,
+    EntitlementsModule,
+    WebhookLedgerModule,
     AuthModule,
     EventBusModule,
     IntegrationsModule,
@@ -56,6 +61,7 @@ import { HealthController } from './health.controller';
     CrmModule,
     OperationsModule,
     RevenueModule,
+    CommerceModule,
     PortalModule,
     FieldModule,
     EmployeesModule,

@@ -3,6 +3,7 @@ import { IsBoolean, IsOptional, IsString, MaxLength } from 'class-validator';
 import { RolesGuard } from '../common/rbac/roles.guard';
 import { Roles } from '../common/rbac/roles.decorator';
 import { AudienceFilter, CampaignsService } from './campaigns.service';
+import { EntitlementsService } from '../common/entitlements/entitlements.service';
 
 class CreateCampaignDto {
   @IsString() @MaxLength(200) name: string;
@@ -44,7 +45,10 @@ class AiDraftDto {
 @Controller('marketing')
 @UseGuards(RolesGuard)
 export class MarketingController {
-  constructor(private readonly campaigns: CampaignsService) {}
+  constructor(
+    private readonly campaigns: CampaignsService,
+    private readonly entitlements: EntitlementsService,
+  ) {}
 
   @Get('campaigns')
   @Roles('STAFF')
@@ -66,7 +70,8 @@ export class MarketingController {
 
   @Post('campaigns')
   @Roles('STAFF')
-  create(@Body() dto: CreateCampaignDto) {
+  async create(@Body() dto: CreateCampaignDto) {
+    if (!dto.isTemplate) await this.entitlements.require('campaignsMonthly');
     return this.campaigns.create(dto);
   }
 
@@ -86,6 +91,13 @@ export class MarketingController {
   @Roles('ADMIN')
   start(@Param('id') id: string) {
     return this.campaigns.start(id);
+  }
+
+  /** Sprint 4: re-attempt ONLY failed recipients (no duplicate sends possible). */
+  @Post('campaigns/:id/retry-failed')
+  @Roles('ADMIN')
+  retryFailed(@Param('id') id: string) {
+    return this.campaigns.retryFailed(id);
   }
 
   @Post('campaigns/:id/pause')

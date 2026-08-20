@@ -6,6 +6,7 @@ import { PrismaService } from '../common/prisma/prisma.service';
 import { tenantContext } from '../common/tenancy/tenant-context';
 import { AutomationService } from './automation.service';
 import { DomainEvents } from './events';
+import { EntitlementsService } from '../common/entitlements/entitlements.service';
 
 /**
  * Owner/admin CRUD for automation rules. The visual "automation builder" in the
@@ -18,6 +19,7 @@ export class AutomationController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly automation: AutomationService,
+    private readonly entitlements: EntitlementsService,
   ) {}
 
   @Get('rules')
@@ -28,7 +30,8 @@ export class AutomationController {
 
   @Post('rules')
   @Roles('ADMIN')
-  create(@Body() body: any) {
+  async create(@Body() body: any) {
+    await this.entitlements.require('automationRules');
     return this.prisma.db.automationRule.create({
       data: {
         name: body.name,

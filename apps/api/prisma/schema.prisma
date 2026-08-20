@@ -1680,18 +1680,63 @@ model MarketplaceReview {
 
 /// A tenant's plan subscription (Stripe-backed).
 model Subscription {
-  id               String    @id @default(cuid())
-  tenantId         String    @unique
-  planKey          String
-  status           String    @default("trialing") // trialing/active/past_due/canceled
-  seats            Int       @default(1)
-  trialEndsAt      DateTime?
-  currentPeriodEnd DateTime?
-  stripeRef        String?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  id                 String    @id @default(cuid())
+  tenantId           String    @unique
+  planKey            String
+  status             String    @default("trialing") // trialing/active/past_due/canceled
+  seats              Int       @default(1)
+  trialEndsAt        DateTime?
+  currentPeriodEnd   DateTime?
+  stripeRef          String?
+  // Sprint 4: full Stripe lifecycle. All provider-confirmed state comes from
+  // webhooks/API sync — never invented locally.
+  stripeCustomerId   String?
+  cancelAtPeriodEnd  Boolean   @default(false)
+  currentPeriodStart DateTime?
+  pastDueSince       DateTime?
+  graceUntil         DateTime?
+  paymentMethodBrand String?
+  paymentMethodLast4 String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   @@index([status])
+  @@index([stripeCustomerId])
+}
+
+/// Sprint 4: audit history of subscription/billing lifecycle transitions.
+/// Scalar tenantId (no relation) — same additive convention as RefreshToken.
+model BillingEvent {
+  id        String   @id @default(cuid())
+  tenantId  String
+  type      String // trial_started/checkout_created/subscription_created/renewed/plan_changed/cancel_scheduled/canceled/reactivated/payment_failed/past_due/recovered/status_synced
+  data      Json     @default("{}")
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([type, createdAt])
+}
+
+/// Sprint 4: webhook reliability ledger. Every provider webhook (billing,
+/// tenant payments, voice) is recorded here with processing truth. Payload is
+/// the provider's JSON body only — request headers/signatures are NEVER stored.
+model WebhookDelivery {
+  id             String    @id @default(cuid())
+  provider       String // stripe-billing/stripe/vapi/...
+  eventType      String
+  idempotencyKey String    @unique // `${provider}:${provider event id}`
+  tenantId       String? // null until/unless resolvable (platform-level events)
+  entity         String? // related entity kind (subscription/payment/call)
+  entityId       String?
+  state          String    @default("RECEIVED") // RECEIVED/PROCESSED/FAILED/SKIPPED/DEAD_LETTER/RESOLVED
+  attempts       Int       @default(0)
+  lastError      String?
+  payload        Json      @default("{}")
+  receivedAt     DateTime  @default(now())
+  processedAt    DateTime?
+
+  @@index([provider, state, receivedAt])
+  @@index([tenantId, receivedAt])
 }
 
 /// Metered usage for usage-based billing (per metric, per month).
@@ -2111,6 +2156,11 @@ model VoiceAgent {
   consentScript            String? // what the agent says to obtain consent
   enabled                  Boolean        @default(false)
   locationId               String? // scalar ref (multi-location)
+  // Sprint 4 activation: real phone-number relationship + routing config.
+  phoneNumber              String? // E.164 the agent answers on (from provider)
+  providerRef              String? // provider phone-number/assistant id
+  routing                  Json           @default("{}") // { handoffNumber?, fallbackAction?, afterHoursAction? }
+  outboundAuthorized       Boolean        @default(false) // explicit owner authorization for outbound
   createdAt                DateTime       @default(now())
   updatedAt                DateTime       @updatedAt
 

@@ -50,6 +50,10 @@ export class VapiAdapter implements VoicePort {
           transcript: msg?.artifact?.transcript ?? msg?.transcript,
           collected: msg?.analysis?.structuredData ?? {},
           externalId,
+          // Provider-reported facts only — absent fields stay undefined.
+          durationSec: typeof msg?.durationSeconds === 'number' ? Math.round(msg.durationSeconds) : undefined,
+          costUsd: typeof msg?.cost === 'number' ? msg.cost : undefined,
+          recordingUrl: msg?.artifact?.recordingUrl ?? msg?.recordingUrl ?? undefined,
         };
       }
       case 'tool-calls':
@@ -63,5 +67,17 @@ export class VapiAdapter implements VoicePort {
       default:
         return { type: 'transcript', callId, transcript: msg?.transcript, externalId };
     }
+  }
+
+  /** Sprint 4 activation: REAL phone numbers on the Vapi account. */
+  async listPhoneNumbers(): Promise<{ available: boolean; numbers: Array<{ id: string; number: string; name?: string }> }> {
+    if (!this.creds.apiKey) return { available: false, numbers: [] };
+    const res = await fetch('https://api.vapi.ai/phone-number', {
+      headers: { Authorization: `Bearer ${this.creds.apiKey}` },
+    });
+    if (!res.ok) throw new Error(`Vapi phone-number list ${res.status}`);
+    const data: any = await res.json();
+    const list = Array.isArray(data) ? data : (data?.results ?? []);
+    return { available: true, numbers: list.map((n: any) => ({ id: n.id, number: n.number ?? n.phoneNumber ?? '', name: n.name })) };
   }
 }

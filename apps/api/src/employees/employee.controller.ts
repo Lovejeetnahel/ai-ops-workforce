@@ -13,6 +13,7 @@ import { AgentApprovalsService } from './framework/agent-approvals.service';
 import { AiUsageService } from './framework/ai-usage.service';
 import { validateEmployeeConfigInput } from './framework/employee-config';
 import { CommandRateLimitGuard } from './command-rate-limit.guard';
+import { EntitlementsService } from '../common/entitlements/entitlements.service';
 
 class RunTaskDto {
   @IsString() type: string;
@@ -51,6 +52,7 @@ export class EmployeeController {
     private readonly prisma: PrismaService,
     private readonly approvals: AgentApprovalsService,
     private readonly usage: AiUsageService,
+    private readonly entitlements: EntitlementsService,
     private readonly providers: ProviderFactory,
   ) {}
 
@@ -65,6 +67,7 @@ export class EmployeeController {
   @Roles('ADMIN')
   @UseGuards(CommandRateLimitGuard)
   async command(@Body() dto: CommandDto) {
+    await this.entitlements.require('aiTasksMonthly');
     const res = await this.orchestrator.run('command_center', { type: 'command', params: { text: dto.text } });
     // Surface the run code, not raw DB ids, as the support reference.
     return { runId: (res.output as any)?.runId ?? null, ...res };
@@ -146,19 +149,24 @@ export class EmployeeController {
 
   @Post(':key/run')
   @Roles('STAFF')
-  run(@Param('key') key: string, @Body() dto: RunTaskDto) {
+  async run(@Param('key') key: string, @Body() dto: RunTaskDto) {
+    await this.entitlements.require('aiTasksMonthly');
     return this.orchestrator.run(key, { type: dto.type, subjects: dto.subjects as any, params: dto.params });
   }
 
   @Post(':key/install')
   @Roles('OWNER')
-  install(@Param('key') key: string, @Body() dto: InstallDto) {
+  async install(@Param('key') key: string, @Body() dto: InstallDto) {
+    const existing = await this.prisma.db.agentInstallation.findFirst({ where: { agentKey: key }, select: { id: true, tenantId: true, enabled: true } });
+    if (!existing?.enabled) await this.entitlements.require('aiEmployees');
     return this.registry.install(key, dto);
   }
 
   @Post(':key/enable')
   @Roles('ADMIN')
-  enable(@Param('key') key: string) {
+  async enable(@Param('key') key: string) {
+    const existing = await this.prisma.db.agentInstallation.findFirst({ where: { agentKey: key }, select: { id: true, tenantId: true, enabled: true } });
+    if (!existing?.enabled) await this.entitlements.require('aiEmployees');
     return this.registry.setEnabled(key, true);
   }
 

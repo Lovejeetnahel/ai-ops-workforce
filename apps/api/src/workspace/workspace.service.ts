@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { EntitlementsService } from '../common/entitlements/entitlements.service';
 
 /**
  * Sprint 3 workspace services: multi-location operations and global search.
@@ -9,15 +10,19 @@ import { PrismaService } from '../common/prisma/prisma.service';
  */
 @Injectable()
 export class WorkspaceService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly entitlements: EntitlementsService,
+  ) {}
 
   // ── Locations ──────────────────────────────────────────────────────────
   listLocations() {
     return this.prisma.db.location.findMany({ orderBy: { createdAt: 'asc' } });
   }
 
-  createLocation(input: { name: string; address?: string; phone?: string; timezone?: string; businessHours?: any }) {
+  async createLocation(input: { name: string; address?: string; phone?: string; timezone?: string; businessHours?: any }) {
     if (!input.name?.trim()) throw new BadRequestException('name is required');
+    await this.entitlements.require('locations');
     return this.prisma.db.location.create({
       data: { name: input.name.trim(), address: input.address ?? null, phone: input.phone ?? null, timezone: input.timezone ?? null, businessHours: input.businessHours ?? {} } as any,
     });

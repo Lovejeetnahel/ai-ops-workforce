@@ -92,7 +92,7 @@ jobs:
             local DASH; DASH=$(curl -fsS https://sofilic.com/dashboard || true)
             echo "$DASH" | grep -q 'name="robots" content="noindex' || { echo "FAIL dashboard noindex"; ok=1; }
             echo "$DASH" | grep -q 'os-topbar' && { echo "FAIL dashboard shell leak"; ok=1; }
-            for t in AgentApproval AiUsageEvent CompanyProfile Goal Kpi KpiSnapshot Campaign CampaignRecipient SocialPost Review ReviewRequest; do
+            for t in AgentApproval AiUsageEvent CompanyProfile Goal Kpi KpiSnapshot Campaign CampaignRecipient SocialPost Review ReviewRequest BillingEvent WebhookDelivery; do
               [ "$(psql_t "SELECT to_regclass('\"$t\"') IS NOT NULL;")" = "t" ] || { echo "FAIL table $t"; ok=1; }
             done
             [ "$(psql_t "SELECT count(*) FROM pg_indexes WHERE indexname LIKE '%hnsw%';")" = "2" ] || { echo "FAIL hnsw indexes"; ok=1; }
@@ -150,6 +150,11 @@ jobs:
             cleanup-test-tenants)
               # Smoke-test tenants are named with this exact marker by the
               # release process; cascade delete removes all their data.
+              # Sprint 4 billing tables use scalar tenantId (no FK cascade,
+              # same convention as RefreshToken) — clear them explicitly first.
+              psql_t "DELETE FROM \"Subscription\" WHERE \"tenantId\" IN (SELECT id FROM \"Tenant\" WHERE name LIKE 'ZZ RELEASE VERIFY%');" || true
+              psql_t "DELETE FROM \"BillingEvent\" WHERE \"tenantId\" IN (SELECT id FROM \"Tenant\" WHERE name LIKE 'ZZ RELEASE VERIFY%');" || true
+              psql_t "DELETE FROM \"WebhookDelivery\" WHERE \"tenantId\" IN (SELECT id FROM \"Tenant\" WHERE name LIKE 'ZZ RELEASE VERIFY%');" || true
               N=$(psql_t "DELETE FROM \"Tenant\" WHERE name LIKE 'ZZ RELEASE VERIFY%'; SELECT 1;" | tail -1 || true)
               echo "CLEANUP_DONE"
               psql_t "SELECT count(*) FROM \"Tenant\" WHERE name LIKE 'ZZ RELEASE VERIFY%';"
@@ -161,6 +166,10 @@ jobs:
               # VERIFY%' tenants (cascade delete takes docs/chunks/memories).
               echo "EMBED_DIMS_IN_DB=$(psql_t 'SELECT COALESCE((SELECT DISTINCT vector_dims(embedding) FROM "KnowledgeChunk" WHERE embedding IS NOT NULL LIMIT 1), 0);')"
               echo "MEMORY_DIMS_IN_DB=$(psql_t 'SELECT COALESCE((SELECT DISTINCT vector_dims(embedding) FROM "EntityMemory" WHERE embedding IS NOT NULL LIMIT 1), 0);')"
+              # Sprint 4 billing tables (scalar tenantId, no FK cascade) first.
+              psql_t "DELETE FROM \"Subscription\" WHERE \"tenantId\" IN (SELECT id FROM \"Tenant\" WHERE name LIKE 'ZZ RELEASE VERIFY%');" || true
+              psql_t "DELETE FROM \"BillingEvent\" WHERE \"tenantId\" IN (SELECT id FROM \"Tenant\" WHERE name LIKE 'ZZ RELEASE VERIFY%');" || true
+              psql_t "DELETE FROM \"WebhookDelivery\" WHERE \"tenantId\" IN (SELECT id FROM \"Tenant\" WHERE name LIKE 'ZZ RELEASE VERIFY%');" || true
               psql_t "DELETE FROM \"Tenant\" WHERE name LIKE 'ZZ RELEASE VERIFY%';" || true
               LEFT=$(psql_t "SELECT count(*) FROM \"Tenant\" WHERE name LIKE 'ZZ RELEASE VERIFY%';")
               echo "SMOKE_CLEANUP_DONE remaining=${LEFT}"
@@ -243,6 +252,7 @@ jobs:
           node .github/smoke/r4-prod-smoke.mjs
           node .github/smoke/sprint2-prod-smoke.mjs
           node .github/smoke/sprint3-prod-smoke.mjs
+          node .github/smoke/sprint4-prod-smoke.mjs
 
       - name: Run on production
         # For mode=smoke this is the tenant cleanup — it must run even when

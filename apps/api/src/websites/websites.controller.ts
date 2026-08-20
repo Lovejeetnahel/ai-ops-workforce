@@ -2,12 +2,16 @@ import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/co
 import { RolesGuard } from '../common/rbac/roles.guard';
 import { Roles } from '../common/rbac/roles.decorator';
 import { WebsitesService } from './websites.service';
+import { EntitlementsService } from '../common/entitlements/entitlements.service';
 
 /** Websites V1 — sites, pages, sections, revisions, publish, forms. */
 @Controller('websites')
 @UseGuards(RolesGuard)
 export class WebsitesController {
-  constructor(private readonly websites: WebsitesService) {}
+  constructor(
+    private readonly websites: WebsitesService,
+    private readonly entitlements: EntitlementsService,
+  ) {}
 
   @Get('sites')
   @Roles('STAFF')
@@ -17,7 +21,8 @@ export class WebsitesController {
 
   @Post('sites')
   @Roles('ADMIN')
-  createSite(@Body('name') name: string) {
+  async createSite(@Body('name') name: string) {
+    await this.entitlements.require('sites');
     return this.websites.createSite(name);
   }
 

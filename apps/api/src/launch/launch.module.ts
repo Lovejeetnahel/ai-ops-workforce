@@ -4,6 +4,9 @@ import { MarketplaceService } from './marketplace/marketplace.service';
 import { MarketplaceController } from './marketplace/marketplace.controller';
 import { BillingService } from './billing/billing.service';
 import { BillingController } from './billing/billing.controller';
+import { StripeBillingService } from './billing/stripe-billing.service';
+import { BillingWebhookController } from './billing/billing-webhook.controller';
+import { SaasAdminController } from './billing/saas-admin.controller';
 import { OpsController } from './ops/ops.controller';
 import { DeveloperController } from './developer/developer.controller';
 
@@ -14,8 +17,8 @@ import { DeveloperController } from './developer/developer.controller';
  */
 @Module({
   imports: [EmployeesModule],
-  controllers: [MarketplaceController, BillingController, OpsController, DeveloperController],
-  providers: [MarketplaceService, BillingService],
-  exports: [BillingService],
+  controllers: [MarketplaceController, BillingController, BillingWebhookController, SaasAdminController, OpsController, DeveloperController],
+  providers: [MarketplaceService, BillingService, StripeBillingService],
+  exports: [BillingService, StripeBillingService],
 })
 export class LaunchModule {}

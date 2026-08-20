@@ -21,10 +21,8 @@ export default function SettingsPage() {
   const [config, setConfig] = useState<any>(null);
   const [tenant, setTenant] = useState<any>(null);
   const [team, setTeam] = useState<any[] | null>(null);
-  const [integrations, setIntegrations] = useState<any[] | null>(null);
   const [presets, setPresets] = useState<any[]>([]);
   const [audit, setAudit] = useState<any[] | null>(null);
-  const [billing, setBilling] = useState<any>(null);
   const [usage, setUsage] = useState<any>(null);
   const [timezone, setTimezone] = useState('');
   const [savingTz, setSavingTz] = useState(false);
@@ -41,6 +39,15 @@ export default function SettingsPage() {
   const [locations, setLocations] = useState<any[] | null>(null);
   const [newLoc, setNewLoc] = useState({ name: '', address: '', phone: '' });
   const [usageDetail, setUsageDetail] = useState<any>(null);
+  // Sprint 4
+  const [overview, setOverview] = useState<any>(null);
+  const [invoices, setInvoices] = useState<any>(null);
+  const [plans, setPlansList] = useState<any[] | null>(null);
+  const [billingBusy, setBillingBusy] = useState('');
+  const [center, setCenter] = useState<any[] | null>(null);
+  const [connOpen, setConnOpen] = useState<any>(null);
+  const [connForm, setConnForm] = useState<Record<string, string>>({});
+  const [connBusy, setConnBusy] = useState(false);
   const [sessions, setSessions] = useState<any[] | null>(null);
   const [pw, setPw] = useState({ current: '', next: '' });
   const [pwBusy, setPwBusy] = useState(false);
@@ -52,17 +59,31 @@ export default function SettingsPage() {
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
     if (tab === 'Team' && team === null) api.team().then(setTeam).catch(() => setTeam([]));
-    if (tab === 'Integrations' && integrations === null) api.integrationsStatus().then(setIntegrations).catch(() => setIntegrations([]));
+    if (tab === 'Integrations' && center === null) api.integrationCenter().then(setCenter).catch(() => setCenter([]));
     if (tab === 'Industry preset' && presets.length === 0) api.industryPresets().then(setPresets).catch(() => {});
     if (tab === 'Security & audit' && audit === null) api.auditHistory().then(setAudit).catch(() => setAudit([]));
     if (tab === 'Security & audit' && sessions === null) api.sessions().then(setSessions).catch(() => setSessions([]));
     if (tab === 'Locations' && locations === null) api.locations().then(setLocations).catch(() => setLocations([]));
     if (tab === 'Billing & usage') {
-      if (!billing) api.billingSummary().then(setBilling).catch(() => setBilling(false));
       if (!usage) api.workforceUsage().then(setUsage).catch(() => setUsage(false));
-      if (!usageDetail) api.billingUsage().then(setUsageDetail).catch(() => setUsageDetail(false));
+      if (!overview) api.billingOverview().then(setOverview).catch(() => setOverview(false));
+      if (!invoices) api.billingInvoices().then(setInvoices).catch(() => setInvoices(false));
+      if (!plans) api.plans().then(setPlansList).catch(() => setPlansList([]));
     }
-  }, [tab, team, integrations, presets.length, audit, billing, usage, sessions, locations, usageDetail]);
+  }, [tab, team, presets.length, audit, usage, sessions, locations, overview, invoices, plans, center]);
+
+  const reloadBilling = () => { setOverview(null); setInvoices(null); };
+  const billingAction = async (key: string, fn: () => Promise<any>, success: string) => {
+    setBillingBusy(key);
+    try {
+      const r = await fn();
+      if (r?.url) { window.location.href = r.url; return; }
+      toast.success(success);
+      reloadBilling();
+    } catch (e: any) {
+      toast.error('Billing action unavailable', String(e?.message ?? '').slice(0, 220));
+    } finally { setBillingBusy(''); }
+  };
 
   const invite = async () => {
     if (!name.trim() || !email.trim()) return;
@@ -207,21 +228,40 @@ export default function SettingsPage() {
 
       {tab === 'Integrations' && (
         <div className="panel">
-          <h3>Integrations</h3>
-          {integrations === null ? <div className="skeleton" style={{ height: 100 }} /> : (
-            integrations.map((i) => (
-              <div className="agent-row" key={i.key}>
-                <span style={{ flex: 1 }}>
-                  <strong>{i.label}</strong>
-                  <span className="muted" style={{ display: 'block', fontSize: 11 }}>Enables: {(i.enables ?? []).join(' · ')}</span>
-                </span>
-                {i.configured ? <span className="chip ok">Connected ({i.source})</span> : <span className="chip warn">Setup required</span>}
+          <h3>Integration center</h3>
+          <p className="muted" style={{ fontSize: 12.5 }}>
+            Real connection state per provider — nothing here pretends. Credentials are encrypted at rest, never displayed back, and every connect/disconnect is audited.
+          </p>
+          {center === null ? <div className="skeleton" style={{ height: 120 }} /> :
+          center.length === 0 ? <p className="muted" style={{ fontSize: 13 }}>Integration status unavailable right now.</p> : (
+            center.map((i) => (
+              <div key={i.key} style={{ borderBottom: '1px solid rgba(128,128,128,0.15)', padding: '10px 0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <strong style={{ flex: 1 }}>{i.label}</strong>
+                  {i.health === 'healthy' && <span className="chip ok">Healthy</span>}
+                  {i.health === 'connected_no_activity' && <span className="chip ok">Connected — no activity yet</span>}
+                  {i.status === 'error' && <span className="chip err">Error</span>}
+                  {i.status === 'not_connected' && <span className="chip warn">Not connected</span>}
+                  {i.configured && <span className="tag">{i.source}</span>}
+                </div>
+                <p className="muted" style={{ fontSize: 12, margin: '4px 0' }}>{i.capability} · Enables: {(i.enables ?? []).join(' · ')}</p>
+                {i.lastSuccessAt && <p className="muted" style={{ fontSize: 11, margin: '2px 0' }}>Last real activity: {new Date(i.lastSuccessAt).toLocaleString()}</p>}
+                {i.lastError && <p style={{ fontSize: 11, margin: '2px 0', color: 'var(--danger, #e05555)' }}>Last error: {i.lastError}</p>}
+                <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+                  <button className="btn ghost sm" onClick={() => { setConnOpen(i); setConnForm({}); }}>{i.tenantConfigured ? 'Update credentials' : 'Connect'}</button>
+                  {i.configured && <button className="btn ghost sm" onClick={async () => {
+                    const r = await api.verifyIntegration(i.key).catch((e: any) => ({ ok: false, detail: String(e?.message ?? '') }));
+                    r.ok ? toast.success('Credentials verified', r.detail) : toast.error('Verification failed', r.detail);
+                    setCenter(null);
+                  }}>Verify</button>}
+                  {i.tenantConfigured && <button className="btn ghost sm" onClick={async () => {
+                    try { await api.disconnectIntegration(i.key); toast.success('Disconnected'); setCenter(null); }
+                    catch (e: any) { toast.error('Owner only', String(e?.message ?? '').slice(0, 140)); }
+                  }}>Disconnect</button>}
+                </div>
               </div>
             ))
           )}
-          <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>
-            Credentials are configured on the server (or per-tenant via encrypted storage) and are never displayed here. Anything not connected says &ldquo;setup required&rdquo; — features depending on it refuse to pretend.
-          </p>
         </div>
       )}
 
@@ -253,50 +293,105 @@ export default function SettingsPage() {
       )}
 
       {tab === 'Billing & usage' && (
-        <div className="grid-2">
-          <div className="panel">
-            <h3>Billing</h3>
-            {billing === null ? <div className="skeleton" style={{ height: 60 }} /> :
-            billing === false ? <p className="muted" style={{ fontSize: 13 }}>Billing details unavailable right now.</p> : (
-              <>
-                {billing?.plan?.name && <p><strong>{billing.plan.name}</strong></p>}
-                {billing?.revenue?.net != null && <p className="muted" style={{ fontSize: 13 }}>Collected through the platform: ${Number(billing.revenue.net).toLocaleString()}</p>}
-                {!billing?.plan?.name && <p className="muted" style={{ fontSize: 13 }}>No live subscription record — plans are listed on the public pricing page.</p>}
-              </>
-            )}
-          </div>
-          <div className="panel">
-            <h3>AI usage</h3>
-            {usage === null ? <div className="skeleton" style={{ height: 60 }} /> :
-            usage === false ? <p className="muted" style={{ fontSize: 13 }}>Usage unavailable right now.</p> : (
-              <>
-                <p className="muted" style={{ fontSize: 13 }}>
-                  This month: {usage?.month?.tasks ?? usage?.tasks ?? 0} AI task{(usage?.month?.tasks ?? usage?.tasks ?? 0) === 1 ? '' : 's'}
-                  {usage?.month?.costUsd != null && ` · $${Number(usage.month.costUsd).toFixed(2)} model cost`}
-                </p>
-                <Link href="/ai-workforce" className="btn ghost sm">Per-employee breakdown</Link>
-              </>
-            )}
-          </div>
-          <div className="panel" style={{ gridColumn: '1 / -1' }}>
-            <h3>Usage vs plan limits</h3>
-            {usageDetail === null ? <div className="skeleton" style={{ height: 80 }} /> :
-            usageDetail === false ? <p className="muted" style={{ fontSize: 13 }}>Usage unavailable right now.</p> : (
-              <>
-                <p className="muted" style={{ fontSize: 12.5 }}>
-                  Plan: <strong>{usageDetail.plan.name}</strong> · state: <span className="tag">{usageDetail.state}</span>
-                  {usageDetail.state === 'no_subscription' && ' — no subscription on file; nothing is enforced yet.'}
-                </p>
-                <div className="agent-row"><span style={{ flex: 1 }}>Staff seats</span><span className={usageDetail.usage.staffUsers.over ? 'chip err' : 'chip ok'}>{usageDetail.usage.staffUsers.used} / {usageDetail.usage.staffUsers.limit}</span></div>
-                <div className="agent-row"><span style={{ flex: 1 }}>AI tasks this month</span><span className={usageDetail.usage.aiTasksThisMonth.over ? 'chip err' : 'chip ok'}>{usageDetail.usage.aiTasksThisMonth.used} / {usageDetail.usage.aiTasksThisMonth.limit}</span></div>
-                <div className="agent-row"><span style={{ flex: 1 }}>Voice calls / minutes (30d)</span><span className="muted" style={{ fontSize: 12 }}>{usageDetail.usage.voice.calls} calls · {usageDetail.usage.voice.minutes ?? '—'} min</span></div>
-                <div className="agent-row"><span style={{ flex: 1 }}>Messages this month</span><span className="muted" style={{ fontSize: 12 }}>{usageDetail.usage.messagesThisMonth.conversationReplies} replies · {usageDetail.usage.messagesThisMonth.campaignSends} campaign sends</span></div>
-                <div className="agent-row"><span style={{ flex: 1 }}>Locations / API keys</span><span className="muted" style={{ fontSize: 12 }}>{usageDetail.usage.locations.used} · {usageDetail.usage.apiKeys.used}</span></div>
-                <div className="agent-row"><span style={{ flex: 1 }}>Storage</span><span className="muted" style={{ fontSize: 12 }}>{usageDetail.usage.storage.note}</span></div>
-                <p className="muted" style={{ fontSize: 11, marginTop: 6 }}>{usageDetail.billingPortal.note}</p>
-              </>
-            )}
-          </div>
+        <div className="grid" style={{ gridTemplateColumns: '1fr' }}>
+          {overview === null ? <div className="skeleton" style={{ height: 120 }} /> :
+          overview === false ? <div className="panel"><p className="muted" style={{ fontSize: 13 }}>Billing details unavailable right now.</p></div> : (
+            <>
+              {(overview.warnings ?? []).map((w: any, idx: number) => (
+                <div key={idx} className="panel" style={{ borderLeft: '3px solid var(--gold, #e8a317)', padding: '10px 14px' }}>
+                  <strong style={{ fontSize: 13 }}>{w.kind === 'past_due' || w.kind === 'past_due_locked' ? '⚠ Payment issue' : w.kind === 'overage' ? 'Usage' : 'Heads up'}</strong>
+                  <p className="muted" style={{ fontSize: 12.5, margin: '4px 0 0' }}>{w.message}</p>
+                </div>
+              ))}
+              <div className="grid-2">
+                <div className="panel">
+                  <h3>Your plan</h3>
+                  <p style={{ margin: '4px 0' }}>
+                    <strong>{overview.plan?.name}</strong> · ${(overview.plan?.priceCents ?? 0) / 100}/mo
+                    <span className="tag" style={{ marginLeft: 8 }}>{overview.state.replace(/_/g, ' ')}</span>
+                    {overview.cancelAtPeriodEnd && <span className="chip warn" style={{ marginLeft: 6 }}>Cancels at period end</span>}
+                  </p>
+                  {overview.trialEndsAt && overview.state === 'trialing' && <p className="muted" style={{ fontSize: 12.5 }}>Trial ends {new Date(overview.trialEndsAt).toLocaleDateString()}.</p>}
+                  {overview.renewsAt && <p className="muted" style={{ fontSize: 12.5 }}>{overview.cancelAtPeriodEnd ? 'Access until' : 'Renews'} {new Date(overview.renewsAt).toLocaleDateString()}.</p>}
+                  {overview.paymentMethod?.onFile
+                    ? <p className="muted" style={{ fontSize: 12.5 }}>Payment method: {overview.paymentMethod.brand?.toUpperCase()} •••• {overview.paymentMethod.last4} (exp {overview.paymentMethod.expMonth}/{overview.paymentMethod.expYear})</p>
+                    : <p className="muted" style={{ fontSize: 12.5 }}>No payment method on file{overview.state === 'trialing' ? ' — none needed during the trial.' : '.'}</p>}
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                    {overview.actions.startTrial && <button className="btn sm" disabled={billingBusy !== ''} onClick={() => billingAction('trial', () => api.billingStartTrial(), 'Free trial started')}>Start free trial</button>}
+                    {overview.actions.portal && <button className="btn ghost sm" disabled={billingBusy !== ''} onClick={() => billingAction('portal', () => api.billingPortal(), 'Opening portal…')}>Billing portal</button>}
+                    {overview.actions.cancel && <button className="btn ghost sm" disabled={billingBusy !== ''} onClick={() => billingAction('cancel', () => api.billingCancel(), 'Cancellation scheduled for period end')}>Cancel at period end</button>}
+                    {overview.actions.reactivate && <button className="btn sm" disabled={billingBusy !== ''} onClick={() => billingAction('reactivate', () => api.billingReactivate(), 'Subscription reactivated')}>Reactivate</button>}
+                  </div>
+                  {!overview.stripe?.checkoutConfigured && (
+                    <p className="muted" style={{ fontSize: 11.5, marginTop: 8 }}>
+                      Online checkout/portal aren&rsquo;t live yet on this platform (Stripe billing setup required) — your trial and usage tracking are fully real in the meantime.
+                    </p>
+                  )}
+                </div>
+                <div className="panel">
+                  <h3>Plans</h3>
+                  {(plans ?? []).map((pl: any) => (
+                    <div className="agent-row" key={pl.key}>
+                      <span style={{ flex: 1 }}>
+                        <strong>{pl.name}</strong> <span className="muted" style={{ fontSize: 12 }}>${pl.priceCents / 100}/mo</span>
+                        <span className="muted" style={{ display: 'block', fontSize: 11 }}>{(pl.features ?? []).join(' · ')}</span>
+                      </span>
+                      {overview.plan?.key === pl.key
+                        ? <span className="chip ok">Current</span>
+                        : (
+                          <button className="btn ghost sm" disabled={billingBusy !== '' || !overview.stripe?.checkoutConfigured}
+                            title={overview.stripe?.checkoutConfigured ? '' : 'Stripe billing setup required'}
+                            onClick={() => billingAction(pl.key, () => api.billingChangePlan(pl.key), 'Plan updated')}>
+                            {overview.subscription ? ((plans ?? []).findIndex((x: any) => x.key === pl.key) > (plans ?? []).findIndex((x: any) => x.key === overview.plan?.key) ? 'Upgrade' : 'Downgrade') : 'Choose'}
+                          </button>
+                        )}
+                    </div>
+                  ))}
+                  <p className="muted" style={{ fontSize: 11, marginTop: 6 }}>Upgrades/downgrades are prorated by Stripe. Nothing is charged without Stripe&rsquo;s hosted checkout.</p>
+                </div>
+              </div>
+              <div className="grid-2">
+                <div className="panel">
+                  <h3>Usage vs included limits</h3>
+                  {Object.entries(overview.usage?.metered ?? {}).map(([k, v]: any) => (
+                    <div className="agent-row" key={k}>
+                      <span style={{ flex: 1, fontSize: 12.5 }}>{k.replace(/([A-Z])/g, ' $1').toLowerCase()}</span>
+                      <span style={{ minWidth: 160, textAlign: 'right' }}>
+                        <span className={v.overage > 0 ? 'chip err' : 'chip ok'}>{v.used} / {v.included}</span>
+                        {v.overage > 0 && <span className="muted" style={{ fontSize: 11, marginLeft: 6 }}>+{v.overage} over</span>}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="agent-row"><span style={{ flex: 1, fontSize: 12.5 }}>storage</span><span className="muted" style={{ fontSize: 12 }}>{overview.usage?.storage?.note ?? 'Not metered yet'}</span></div>
+                  {overview.overage?.note && <p className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>{overview.overage.note}</p>}
+                  <p className="muted" style={{ fontSize: 11.5 }}>Hitting a limit never locks you out of your existing data — creating new work asks you to upgrade.</p>
+                </div>
+                <div className="panel">
+                  <h3>Invoices</h3>
+                  {invoices === null ? <div className="skeleton" style={{ height: 60 }} /> :
+                  invoices === false || !invoices.available ? <p className="muted" style={{ fontSize: 12.5 }}>{invoices?.note ?? 'Invoices appear once Stripe billing is active.'}</p> :
+                  invoices.invoices.length === 0 ? <p className="muted" style={{ fontSize: 12.5 }}>No invoices yet.</p> : (
+                    invoices.invoices.map((inv: any) => (
+                      <div className="agent-row" key={inv.id}>
+                        <span style={{ flex: 1, fontSize: 12.5 }}>{inv.number ?? inv.id} <span className="tag">{inv.status}</span></span>
+                        <span className="muted" style={{ fontSize: 12 }}>${inv.amountPaid || inv.amountDue} · {new Date(inv.createdAt).toLocaleDateString()}</span>
+                        {inv.hostedInvoiceUrl && <a className="btn ghost sm" href={inv.hostedInvoiceUrl} target="_blank" rel="noreferrer" style={{ marginLeft: 8 }}>View</a>}
+                      </div>
+                    ))
+                  )}
+                  <div style={{ marginTop: 10 }}>
+                    <h3 style={{ fontSize: 13 }}>AI usage</h3>
+                    {usage && usage !== false && (
+                      <p className="muted" style={{ fontSize: 12.5 }}>
+                        This month: {usage?.month?.tasks ?? usage?.tasks ?? 0} AI tasks{usage?.month?.costUsd != null && ` · $${Number(usage.month.costUsd).toFixed(2)} model cost`}
+                        {' '}· <Link href="/ai-workforce">per-employee breakdown</Link>
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -380,6 +475,34 @@ export default function SettingsPage() {
             {saving ? 'Sending…' : 'Send invite'}
           </button>
         </div>
+      </Modal>
+
+      <Modal open={!!connOpen} onClose={() => setConnOpen(null)} title={connOpen ? `Connect ${connOpen.label}` : ''}>
+        {connOpen && (
+          <>
+            <p className="muted" style={{ fontSize: 12.5 }}>{connOpen.setupGuide}</p>
+            <p className="muted" style={{ fontSize: 11.5 }}>{connOpen.permissions}</p>
+            {(connOpen.fields ?? []).map((f: any) => (
+              <div className="field" key={f.name}>
+                <label>{f.label}{f.required ? '' : ' (optional)'}</label>
+                <input type="password" autoComplete="off" value={connForm[f.name] ?? ''} onChange={(e) => setConnForm({ ...connForm, [f.name]: e.target.value })} />
+              </div>
+            ))}
+            <div className="modal-actions">
+              <button className="btn ghost sm" onClick={() => setConnOpen(null)}>Cancel</button>
+              <button className="btn sm" disabled={connBusy || (connOpen.fields ?? []).some((f: any) => f.required && !(connForm[f.name] ?? '').trim())} onClick={async () => {
+                setConnBusy(true);
+                try {
+                  await api.connectIntegration(connOpen.key, connForm);
+                  toast.success('Connected', 'Credentials stored encrypted. Run Verify to probe them against the provider.');
+                  setConnOpen(null); setConnForm({}); setCenter(null);
+                } catch (e: any) {
+                  toast.error('Could not connect', String(e?.message ?? '').slice(0, 180));
+                } finally { setConnBusy(false); }
+              }}>{connBusy ? 'Saving…' : 'Save credentials'}</button>
+            </div>
+          </>
+        )}
       </Modal>
 
       <Modal open={!!presetConfirm} onClose={() => setPresetConfirm(null)} title="Switch industry preset">

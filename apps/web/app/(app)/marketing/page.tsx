@@ -359,7 +359,23 @@ export default function MarketingPage() {
               <span className={`chip ${CAMPAIGN_CHIP[detail.status] ?? 'warn'}`}>{detail.status}</span>
               <span className="tag">{detail.channel}</span>
               {detail.approvedAt ? <span className="chip ok">Approved</span> : <span className="chip warn">Needs admin approval</span>}
+              {detail.scheduledAt && detail.status === 'SCHEDULED' && <span className="tag">Sends {new Date(detail.scheduledAt).toLocaleString()}</span>}
             </div>
+            {['DRAFT', 'SCHEDULED'].includes(detail.status) && !detail.isTemplate && (
+              <div className="field" style={{ marginBottom: 8, maxWidth: 320 }}>
+                <label>Schedule automatic send (your local time)</label>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input type="datetime-local" id={`sched-${detail.id}`} defaultValue={detail.scheduledAt ? new Date(new Date(detail.scheduledAt).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''} />
+                  <button className="btn ghost sm" disabled={busy} onClick={() => {
+                    const el = document.getElementById(`sched-${detail.id}`) as HTMLInputElement | null;
+                    if (!el?.value) return;
+                    act(() => api.updateCampaign(detail.id, { scheduledAt: new Date(el.value).toISOString() }), 'Scheduled — it sends automatically once approved');
+                  }}>Schedule</button>
+                  {detail.scheduledAt && <button className="btn ghost sm" disabled={busy} onClick={() => act(() => api.updateCampaign(detail.id, { scheduledAt: null }), 'Schedule removed')}>Unschedule</button>}
+                </div>
+                {(detail.meta as any)?.pausedReason && <p className="muted" style={{ fontSize: 11 }}>Paused: {(detail.meta as any).pausedReason}</p>}
+              </div>
+            )}
             <p style={{ whiteSpace: 'pre-wrap', fontSize: 13, background: 'rgba(128,128,128,0.08)', padding: 10, borderRadius: 8 }}>
               {detail.subject && <strong style={{ display: 'block' }}>{detail.subject}</strong>}{detail.content || 'No content yet'}
             </p>
@@ -371,6 +387,9 @@ export default function MarketingPage() {
                 </button>
               )}
               {detail.status === 'ACTIVE' && <button className="btn ghost sm" disabled={busy} onClick={() => act(() => api.pauseCampaign(detail.id), 'Paused')}>Pause</button>}
+              {['COMPLETED', 'PAUSED'].includes(detail.status) && (detail.recipients ?? []).some((r: any) => r.status === 'FAILED') && (
+                <button className="btn ghost sm" disabled={busy} onClick={() => act(() => api.campaignRetryFailed(detail.id), 'Retried failed recipients')}>Retry failed only</button>
+              )}
               {!['COMPLETED', 'CANCELLED'].includes(detail.status) && (
                 <button className="btn ghost sm" disabled={busy} onClick={() => act(() => api.cancelCampaign(detail.id), 'Cancelled')}>Cancel campaign</button>
               )}

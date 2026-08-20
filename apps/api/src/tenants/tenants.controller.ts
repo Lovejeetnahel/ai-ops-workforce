@@ -1,10 +1,11 @@
-import { BadRequestException, Body, Controller, Get, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { IsArray, IsBoolean, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
 import { IndustryModule, UserRole } from '@prisma/client';
 import { listModules, listPresets } from '@aiow/config';
 import { RolesGuard } from '../common/rbac/roles.guard';
 import { Roles } from '../common/rbac/roles.decorator';
 import { TenantsService } from './tenants.service';
+import { IntegrationCenterService } from './integration-center.service';
 
 class CreateTenantDto {
   @IsString() name: string;
@@ -45,7 +46,10 @@ class UpdateOnboardingDto {
 
 @Controller('tenants')
 export class TenantsController {
-  constructor(private readonly tenants: TenantsService) {}
+  constructor(
+    private readonly tenants: TenantsService,
+    private readonly integrations: IntegrationCenterService,
+  ) {}
 
   /** Public onboarding: provision a business, its owner, and seed automations. */
   @Post()
@@ -129,6 +133,46 @@ export class TenantsController {
   @Roles('ADMIN')
   integrationsStatus() {
     return this.tenants.integrationsStatus();
+  }
+
+  /** Sprint 4: activation launch checklist (all real states). */
+  @Get('launch-checklist')
+  @UseGuards(RolesGuard)
+  @Roles('STAFF')
+  launchChecklist() {
+    return this.tenants.launchChecklist();
+  }
+
+  /** Sprint 4 integration center: full per-provider management view. */
+  @Get('integrations')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
+  integrationCenter() {
+    return this.integrations.list();
+  }
+
+  /** Connect/replace a provider's credentials (encrypted at rest, audited). */
+  @Post('integrations/:provider')
+  @UseGuards(RolesGuard)
+  @Roles('OWNER')
+  connectIntegration(@Param('provider') provider: string, @Body() config: Record<string, unknown>) {
+    return this.integrations.connect(provider.toUpperCase(), config ?? {});
+  }
+
+  /** Disconnect a provider (clears stored credentials, audited). */
+  @Delete('integrations/:provider')
+  @UseGuards(RolesGuard)
+  @Roles('OWNER')
+  disconnectIntegration(@Param('provider') provider: string) {
+    return this.integrations.disconnect(provider.toUpperCase());
+  }
+
+  /** Read-only credential probe against the provider's own API. */
+  @Post('integrations/:provider/verify')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
+  verifyIntegration(@Param('provider') provider: string) {
+    return this.integrations.verify(provider.toUpperCase());
   }
 
   /** Change the industry preset — same engine only, OWNER only. */

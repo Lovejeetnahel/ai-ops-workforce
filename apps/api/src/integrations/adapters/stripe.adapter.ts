@@ -74,6 +74,12 @@ export class StripeAdapter implements PaymentPort {
 
   /** Stripe's documented webhook signature scheme. Throws on any mismatch. */
   private verifySignature(rawBody: string, header: string, secret: string): void {
+    verifyStripeSignature(rawBody, header, secret);
+  }
+}
+
+/** Exported so the platform billing webhook verifies with the same scheme. */
+export function verifyStripeSignature(rawBody: string, header: string, secret: string): void {
     if (!header) throw new UnauthorizedException('Missing Stripe-Signature header');
 
     const parts = Object.fromEntries(
@@ -98,4 +104,3 @@ export class StripeAdapter implements PaymentPort {
       throw new UnauthorizedException('Stripe webhook signature mismatch');
     }
   }
-}
