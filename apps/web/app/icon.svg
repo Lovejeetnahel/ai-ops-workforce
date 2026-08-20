@@ -1,17 +1,18 @@
 <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="g1" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+    <linearGradient id="gold" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#ffc629"/>
       <stop offset="0.55" stop-color="#e8a317"/>
       <stop offset="1" stop-color="#ffe066"/>
     </linearGradient>
-    <linearGradient id="g2" x1="48" y1="0" x2="0" y2="48" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ffe066"/>
-      <stop offset="1" stop-color="#ffc629"/>
+    <linearGradient id="horn" x1="12" y1="2" x2="36" y2="14" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#c1121f"/>
+      <stop offset="1" stop-color="#e63946"/>
     </linearGradient>
   </defs>
   <rect width="48" height="48" rx="13" fill="#0a0d18"/>
-  <rect x="17" y="11" width="21" height="7" rx="3.5" fill="url(#g1)"/>
-  <rect x="10" y="20.5" width="28" height="7" rx="3.5" fill="url(#g2)"/>
-  <rect x="10" y="30" width="21" height="7" rx="3.5" fill="url(#g1)"/>
+  <path d="M12.6 3.2 C16.6 4.5 19.6 7.4 20.9 11.6 C19.1 12.2 17.5 13.1 16.1 14.3 C14.7 10.5 13.6 6.9 12.6 3.2 Z" fill="url(#horn)"/>
+  <path d="M35.4 3.2 C31.4 4.5 28.4 7.4 27.1 11.6 C28.9 12.2 30.5 13.1 31.9 14.3 C33.3 10.5 34.4 6.9 35.4 3.2 Z" fill="url(#horn)"/>
+  <path d="M32.2 18.2 C32.2 14.9 28.7 12.9 24 12.9 C19.3 12.9 15.8 15 15.8 18.4 C15.8 22 19.5 23.1 24 23.9 C28.8 24.7 32.2 26.2 32.2 29.9 C32.2 33.6 28.7 35.6 24 35.6 C19.3 35.6 15.8 33.5 15.8 30.3" stroke="url(#gold)" stroke-width="4.4" stroke-linecap="round"/>
+  <path d="M24 9.4 V39.2" stroke="url(#gold)" stroke-width="3.8" stroke-linecap="round"/>
 </svg>

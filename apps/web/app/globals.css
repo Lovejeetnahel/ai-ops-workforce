@@ -76,15 +76,28 @@ code { background: var(--panel-2); border-radius: 6px; padding: 1px 6px; font-si
 /* ── Brand ─────────────────────────────────────────────────── */
 .sofilic-logo { display: inline-flex; align-items: center; gap: 11px; text-decoration: none; }
 .sofilic-word { display: flex; flex-direction: column; line-height: 1.15; }
-.sofilic-name { font-weight: 800; font-size: 15px; letter-spacing: 0.22em; color: var(--text); }
-.sofilic-sub { font-size: 10px; color: var(--muted); letter-spacing: 0.14em; text-transform: uppercase; margin-top: 1px; }
+.sofilic-name { font-weight: 800; font-size: 19px; letter-spacing: 0.015em; line-height: 1; color: var(--text); }
+.sofilic-name .brand-s {
+  background: linear-gradient(160deg, #ffc629, #e8a317);
+  -webkit-background-clip: text; background-clip: text;
+  color: #e8a317; -webkit-text-fill-color: transparent;
+}
+.sofilic-name .brand-li {
+  background: linear-gradient(180deg, #e63946, #f77f00);
+  -webkit-background-clip: text; background-clip: text;
+  color: #e63946; -webkit-text-fill-color: transparent;
+}
+.sofilic-name .brand-c {
+  background: linear-gradient(180deg, #ffc629, #e8a317);
+  -webkit-background-clip: text; background-clip: text;
+  color: #e8a317; -webkit-text-fill-color: transparent;
+}
+.sofilic-sub { font-size: 10px; color: var(--muted); letter-spacing: 0.14em; text-transform: uppercase; margin-top: 2px; }
 .sofilic-mark { display: block; flex: none; }
-.sofilic-mark.animated .s-bar { animation: s-flow 4.5s var(--ease) infinite; transform-origin: center; }
-.sofilic-mark.animated .s-bar-2 { animation-delay: 0.35s; }
-.sofilic-mark.animated .s-bar-3 { animation-delay: 0.7s; }
+.sofilic-mark.animated .s-horn { animation: s-flow 4.5s var(--ease) infinite; transform-origin: center; }
 @keyframes s-flow {
-  0%, 100% { opacity: 1; transform: translateX(0); }
-  50% { opacity: 0.72; transform: translateX(1.5px); }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
 }
 
 /* ── Motion primitives ─────────────────────────────────────── */
