@@ -2,13 +2,12 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { ValueLedgerService } from '../../control/value-ledger.service';
 import { tenantContext } from '../../common/tenancy/tenant-context';
+import { PLANS, TRIAL_DAYS } from '../../common/entitlements/plans';
+import { EntitlementsService } from '../../common/entitlements/entitlements.service';
+import { StripeBillingService } from './stripe-billing.service';
 
-/** Plan catalog (config, not fake). Stripe price ids are wired per environment. */
-export const PLANS = [
-  { key: 'starter', name: 'Starter', priceCents: 9900, seats: 3, includedAiTasks: 1000, features: ['CRM', 'Scheduling', 'Invoicing', '1 AI employee'] },
-  { key: 'pro', name: 'Pro', priceCents: 29900, seats: 15, includedAiTasks: 10000, features: ['Everything in Starter', 'Full AI workforce', 'Analytics', 'Workflows'] },
-  { key: 'enterprise', name: 'Enterprise', priceCents: 99900, seats: 100, includedAiTasks: 100000, features: ['Everything in Pro', 'Multi-company', 'API + webhooks', 'SSO (roadmap)', 'Priority support'] },
-];
+export { PLANS };
+
 
 /**
  * Billing backend: plan subscriptions + metered usage. Revenue analytics reuse
@@ -21,6 +20,8 @@ export class BillingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ledger: ValueLedgerService,
+    private readonly entitlements: EntitlementsService,
+    private readonly stripeBilling: StripeBillingService,
   ) {}
 
   plans() {
@@ -33,7 +34,7 @@ export class BillingService {
     return this.prisma.db.subscription.upsert({
       where: { tenantId: tenantContext.tenantId },
       update: { planKey, seats: seats ?? plan.seats, status: 'active' },
-      create: { planKey, seats: seats ?? plan.seats, status: 'trialing', trialEndsAt: new Date(Date.now() + 14 * 86_400_000) } as any,
+      create: { planKey, seats: seats ?? plan.seats, status: 'trialing', trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 86_400_000) } as any,
     });
   }
 
@@ -68,46 +69,105 @@ export class BillingService {
   }
 
   /**
-   * Sprint 3: REAL usage against plan limits. Every number is a live count
-   * from source-of-truth tables — nothing metered is invented. With no
-   * Subscription row the tenant is honestly reported as 'no_subscription'
-   * (limits shown from the Starter plan for context, nothing enforced), and
-   * Stripe billing-portal access is setup-required until Stripe is connected.
+   * Sprint 3→4: REAL usage against plan limits. Every number is a live count
+   * from source-of-truth tables — nothing metered is invented. Sprint 4 adds
+   * the full metered snapshot (included/consumed/remaining/overage per limit)
+   * from the central EntitlementsService, honest overage reporting (counted,
+   * not billed — no overage pricing exists yet), and a REAL billing-portal
+   * availability signal. System/test activity is excluded from billable
+   * usage: voice minutes come only from provider webhooks, message counts
+   * exclude internal notes, and release-verification tenants are deleted by
+   * the smoke pipeline rather than metered.
    */
   async usage() {
-    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const snapshot = await this.entitlements.snapshot();
+    const { subscription, plan, state, enforced, usage: metered } = snapshot;
+    const sub = subscription;
+    const stripeConfigured = this.stripeBilling.configured();
     const db = this.prisma.db;
-    const [subscription, staffUsers, aiTasksMonth, callAgg, outboundMsgs, campaignSent, locations, apiKeys] = await Promise.all([
-      this.current(),
-      db.user.count({ where: { role: { in: ['OWNER', 'ADMIN', 'STAFF'] }, status: 'ACTIVE' } }),
-      db.agentTask.count({ where: { createdAt: { gte: monthStart } } }),
-      db.callRecord.aggregate({ where: { startedAt: { gte: monthStart } }, _sum: { durationSec: true }, _count: true }),
-      db.message.count({ where: { direction: 'OUTBOUND', isInternal: false, createdAt: { gte: monthStart } } }),
-      db.campaignRecipient.count({ where: { status: 'SENT', sentAt: { gte: monthStart } } }),
-      db.location.count({ where: { active: true } }),
-      db.apiKey.count(),
-    ]);
-    const plan = PLANS.find((p) => p.key === subscription?.planKey) ?? PLANS[0];
-    const state = !subscription
-      ? 'no_subscription'
-      : subscription.status === 'trialing' && subscription.trialEndsAt && subscription.trialEndsAt < new Date()
-        ? 'trial_expired'
-        : subscription.status;
+    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const callAgg = await db.callRecord.aggregate({ where: { startedAt: { gte: monthStart } }, _sum: { durationSec: true }, _count: true });
+    const billableOverage = (Object.entries(metered) as Array<[string, { overage: number }]>)
+      .filter(([k, v]) => v.overage > 0 && ['aiTasksMonthly', 'voiceMinutesMonthly', 'messagesMonthly'].includes(k))
+      .map(([k, v]) => ({ metric: k, overage: v.overage }));
     return {
       state,
-      plan: { key: plan.key, name: plan.name, seats: plan.seats, includedAiTasks: plan.includedAiTasks },
-      subscription,
+      enforced,
+      plan: { key: plan.key, name: plan.name, seats: plan.limits.staffSeats, includedAiTasks: plan.limits.aiTasksMonthly, priceCents: plan.priceCents, limits: plan.limits },
+      subscription: sub,
       usage: {
-        staffUsers: { used: staffUsers, limit: plan.seats, over: staffUsers > plan.seats },
-        aiTasksThisMonth: { used: aiTasksMonth, limit: plan.includedAiTasks, over: aiTasksMonth > plan.includedAiTasks },
+        staffUsers: { used: metered.staffSeats.used, limit: metered.staffSeats.included, over: metered.staffSeats.overage > 0 },
+        aiTasksThisMonth: { used: metered.aiTasksMonthly.used, limit: metered.aiTasksMonthly.included, over: metered.aiTasksMonthly.overage > 0 },
         voice: { calls: callAgg._count, minutes: callAgg._sum.durationSec != null ? Math.round(Number(callAgg._sum.durationSec) / 60) : null, note: 'Minutes come from provider webhooks only' },
-        messagesThisMonth: { conversationReplies: outboundMsgs, campaignSends: campaignSent },
-        locations: { used: locations },
-        apiKeys: { used: apiKeys },
+        messagesThisMonth: { used: metered.messagesMonthly.used, limit: metered.messagesMonthly.included },
+        locations: { used: metered.locations.used, limit: metered.locations.included },
+        apiKeys: { used: metered.apiKeys.used, limit: metered.apiKeys.included },
         storage: { note: 'Not metered yet — no number is shown rather than a fake one' },
+        metered,
       },
-      billingPortal: { available: false, note: 'Stripe customer portal requires a connected Stripe billing account — setup required.' },
+      overage: {
+        billable: billableOverage,
+        note: billableOverage.length
+          ? 'Overage is counted but NOT billed — no overage pricing is configured. Upgrade to raise included limits.'
+          : null,
+      },
+      billingPortal: {
+        available: !!(this.stripeBilling.secretKey && sub?.stripeCustomerId),
+        note: this.stripeBilling.secretKey
+          ? sub?.stripeCustomerId
+            ? null
+            : 'The Stripe portal opens once a billing customer exists (choose a plan).'
+          : 'Stripe billing is not configured on this platform yet — setup required.',
+      },
+      stripe: { checkoutConfigured: stripeConfigured.checkout, prices: stripeConfigured.prices },
     };
+  }
+
+  /**
+   * Sprint 4: the customer billing experience in one call — plan, provider
+   * state, trial/renewal dates, payment method, warnings and which actions
+   * are genuinely available (never a dead button).
+   */
+  async overview() {
+    const [u, paymentMethod] = await Promise.all([this.usage(), this.stripeBilling.paymentMethod()]);
+    const sub: any = u.subscription;
+    const warnings: Array<{ kind: string; message: string }> = [];
+    const now = Date.now();
+    if (u.state === 'trialing' && sub?.trialEndsAt) {
+      const daysLeft = Math.ceil((new Date(sub.trialEndsAt).getTime() - now) / 86_400_000);
+      if (daysLeft <= 5) warnings.push({ kind: 'trial_ending', message: `Your free trial ends in ${daysLeft} day${daysLeft === 1 ? '' : 's'}. Choose a plan to keep full access.` });
+    }
+    if (u.state === 'trial_expired') warnings.push({ kind: 'trial_expired', message: 'Your free trial has ended. Your data is fully accessible — choose a plan to keep creating new work.' });
+    if (u.state === 'past_due_grace') warnings.push({ kind: 'past_due', message: `A subscription payment failed. Update your payment method${sub?.graceUntil ? ` before ${new Date(sub.graceUntil).toLocaleDateString()}` : ''} to avoid interruption.` });
+    if (u.state === 'past_due_locked') warnings.push({ kind: 'past_due_locked', message: 'Payment is past due and the grace period has ended. Reading and exporting your data always works; creating new work requires reactivation.' });
+    if (u.state === 'canceled') warnings.push({ kind: 'canceled', message: 'Your subscription is canceled. Reactivate any time — your data is intact.' });
+    for (const o of u.overage.billable) warnings.push({ kind: 'overage', message: `Over the included ${o.metric} by ${o.overage} this month (counted, not billed).` });
+    const stripeReady = u.stripe.checkoutConfigured;
+    return {
+      ...u,
+      paymentMethod,
+      trialEndsAt: sub?.trialEndsAt ?? null,
+      renewsAt: sub?.currentPeriodEnd ?? null,
+      cancelAtPeriodEnd: !!sub?.cancelAtPeriodEnd,
+      warnings,
+      actions: {
+        startTrial: !sub,
+        checkout: stripeReady,
+        changePlan: stripeReady && !!sub,
+        cancel: !!sub && !sub.cancelAtPeriodEnd && ['trialing', 'active', 'past_due_grace'].includes(u.state),
+        reactivate: !!sub && (sub.cancelAtPeriodEnd || u.state === 'canceled'),
+        portal: u.billingPortal.available,
+      },
+    };
+  }
+
+  /** Billing lifecycle audit history (BillingEvent rows, newest first). */
+  billingEvents(limit = 50) {
+    return this.prisma.billingEvent.findMany({
+      where: { tenantId: tenantContext.tenantId },
+      orderBy: { createdAt: 'desc' },
+      take: Math.max(1, Math.min(200, limit)),
+    });
   }
 
   /** Feature-gate check used by UI/services. Warns honestly, never silently. */

@@ -24,7 +24,38 @@ export class VoiceAiController {
   @Patch('agents/:id')
   @Roles('ADMIN')
   update(@Param('id') id: string, @Body() body: any) {
-    return this.voice.updateAgent(id, body);
+    // Outbound authorization is an OWNER decision — strip it here so the
+    // dedicated OWNER endpoint below is the only path that can grant it.
+    const { outboundAuthorized: _stripped, ...rest } = body ?? {};
+    return this.voice.updateAgent(id, rest);
+  }
+
+  /** Explicit owner authorization for outbound calling on one agent. */
+  @Post('agents/:id/outbound-authorization')
+  @Roles('OWNER')
+  outboundAuthorization(@Param('id') id: string, @Body('authorized') authorized: boolean) {
+    return this.voice.updateAgent(id, { outboundAuthorized: authorized === true });
+  }
+
+  /** Sprint 4: activation state machine (provider, numbers, steps). */
+  @Get('setup')
+  @Roles('ADMIN')
+  setup() {
+    return this.voice.setup();
+  }
+
+  /** Create a real sales opportunity from a call. */
+  @Post('calls/:id/create-lead')
+  @Roles('STAFF')
+  createLead(@Param('id') id: string, @Body() body: { title?: string; estimatedValue?: number }) {
+    return this.voice.createLeadFromCall(id, body ?? {});
+  }
+
+  /** Create a real appointment from a call (existing schedule engine). */
+  @Post('calls/:id/create-booking')
+  @Roles('STAFF')
+  createBooking(@Param('id') id: string, @Body() body: { userId: string; start: string; durationMin?: number; notes?: string }) {
+    return this.voice.createBookingFromCall(id, body);
   }
 
   @Get('calls')

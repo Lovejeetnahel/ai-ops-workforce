@@ -18,6 +18,8 @@ export interface VoicePort {
   startCall(input: { to: string; from?: string; assistantId?: string; context?: Record<string, unknown> }): Promise<{ callId: string }>;
   /** Normalize a provider webhook into our shape. */
   parseWebhook(body: unknown, headers: Record<string, string>): VoiceWebhookEvent;
+  /** Sprint 4: real phone numbers on the provider account (activation flow). */
+  listPhoneNumbers?(): Promise<{ available: boolean; numbers: Array<{ id: string; number: string; name?: string }> }>;
 }
 
 export interface VoiceWebhookEvent {
@@ -29,6 +31,10 @@ export interface VoiceWebhookEvent {
   /** Structured fields the assistant extracted (name, serviceType, urgency...). */
   collected?: Record<string, unknown>;
   externalId: string;
+  /** Sprint 4: provider-reported call facts (never invented locally). */
+  durationSec?: number;
+  costUsd?: number;
+  recordingUrl?: string;
 }
 
 export interface CalendarPort {

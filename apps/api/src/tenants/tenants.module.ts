@@ -4,6 +4,7 @@ import { IntegrationsModule } from '../integrations/integrations.module';
 import { AgentsModule } from '../agents/agents.module';
 import { TenantsController } from './tenants.controller';
 import { TenantsService } from './tenants.service';
+import { IntegrationCenterService } from './integration-center.service';
 import { ConfigController } from './config.controller';
 
 // AgentsModule is imported directly because it OWNS and exports
@@ -13,6 +14,6 @@ import { ConfigController } from './config.controller';
 @Module({
   imports: [AutomationModule, AgentsModule, IntegrationsModule],
   controllers: [TenantsController, ConfigController],
-  providers: [TenantsService],
+  providers: [TenantsService, IntegrationCenterService],
 })
 export class TenantsModule {}

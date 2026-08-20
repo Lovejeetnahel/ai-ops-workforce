@@ -2,6 +2,8 @@ import { BadRequestException, ConflictException, Injectable } from '@nestjs/comm
 import { IndustryModule, UserRole } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { EntitlementsService } from '../common/entitlements/entitlements.service';
+import { TRIAL_DAYS } from '../common/entitlements/plans';
 import { AuthService } from '../auth/auth.service';
 import { AutomationService } from '../automation/automation.service';
 import { getPreset } from '@aiow/config';
@@ -30,6 +32,7 @@ export class TenantsService {
     private readonly automation: AutomationService,
     private readonly moduleConfig: ModuleConfigService,
     private readonly providers: ProviderFactory,
+    private readonly entitlements: EntitlementsService,
   ) {}
 
   async provision(dto: {
@@ -111,6 +114,14 @@ export class TenantsService {
     // Seed module automation presets within the new tenant's context.
     await tenantContext.run({ tenantId: tenant.id }, () => this.automation.seedPresets(tenant.id));
 
+    // Sprint 4: every new signup starts a real local 14-day trial on Pro (no
+    // card, no Stripe object — honestly local until checkout). Base client:
+    // Subscription is keyed by tenantId, no ambient context needed.
+    await this.prisma.subscription.create({
+      data: { tenantId: tenant.id, planKey: 'pro', seats: 15, status: 'trialing', trialEndsAt: new Date(now.getTime() + TRIAL_DAYS * 86_400_000) },
+    });
+    await this.prisma.billingEvent.create({ data: { tenantId: tenant.id, type: 'trial_started', data: { planKey: 'pro', trialDays: TRIAL_DAYS, at: 'signup' } } });
+
     return { id: tenant.id, slug: tenant.slug, industryModule: tenant.industryModule };
   }
 
@@ -165,6 +176,7 @@ export class TenantsService {
    * existing pattern (same password hashing, same tenant-scoped create).
    */
   async createStaffUser(input: { email: string; password: string; name: string; role: UserRole; skills?: string[]; serviceZones?: string[] }) {
+    await this.entitlements.require('staffSeats');
     return this.prisma.db.user.create({
       data: {
         email: input.email,
@@ -225,6 +237,53 @@ export class TenantsService {
       { key: 'VAPI', label: 'Vapi (Voice AI)', ...status.voice, enables: ['Inbound AI phone answering', 'Call transcripts'] },
       { key: 'STRIPE', label: 'Stripe (Card payments)', ...status.stripe, enables: ['Invoice payment links', 'Card transactions'] },
     ];
+  }
+
+  /**
+   * Sprint 4 launch checklist: the activation journey with every state
+   * computed from real data — nothing is checked off that is not actually
+   * configured. Optional items say so instead of blocking launch.
+   */
+  async launchChecklist() {
+    const db = this.prisma.db;
+    const tenantId = tenantContext.tenantId;
+    const [subscription, profile, tenant, services, locations, staff, goals, comms, agentsEnabled, voiceAgents, rules, sites] = await Promise.all([
+      this.prisma.subscription.findUnique({ where: { tenantId } }),
+      db.companyProfile.findFirst({ select: { id: true, tenantId: true, brandName: true, legalName: true } }),
+      db.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { settings: true } }),
+      db.serviceOffering.count({ where: { active: true } }),
+      db.location.count({ where: { active: true } }),
+      db.user.count({ where: { role: { in: ['OWNER', 'ADMIN', 'STAFF'] }, status: 'ACTIVE' } }),
+      db.goal.count(),
+      this.providers.commsStatus(tenantId),
+      db.agentInstallation.count({ where: { enabled: true } }),
+      db.voiceAgent.count(),
+      db.automationRule.count({ where: { enabled: true } }),
+      db.site.count(),
+    ]);
+    const settings = (tenant.settings as any) ?? {};
+    const items = [
+      { key: 'plan', label: 'Plan / trial active', done: !!subscription, optional: false, href: '/settings?tab=billing', detail: subscription ? `${subscription.planKey} (${subscription.status})` : 'Start your free trial' },
+      { key: 'profile', label: 'Company profile', done: !!(profile?.brandName || profile?.legalName), optional: false, href: '/brain', detail: 'Grounds every AI answer in your real business' },
+      { key: 'preset', label: 'Industry preset', done: !!settings.presetKey, optional: false, href: '/settings?tab=preset', detail: settings.presetKey ?? 'Pick the preset that matches your business' },
+      { key: 'services', label: 'Services & prices', done: services > 0, optional: false, href: '/apps/appointments', detail: `${services} service(s)` },
+      { key: 'team', label: 'Invite your team', done: staff > 1, optional: true, href: '/settings?tab=team', detail: `${staff} staff user(s)` },
+      { key: 'location', label: 'Locations', done: locations > 0, optional: true, href: '/settings?tab=locations', detail: 'Only needed for multi-location businesses' },
+      { key: 'goals', label: 'Goals & KPIs', done: goals > 0, optional: false, href: '/brain', detail: `${goals} goal(s)` },
+      { key: 'comms', label: 'Connect SMS or email', done: comms.sms.configured || comms.email.configured, optional: true, href: '/settings?tab=integrations', detail: 'Needed for campaigns, review requests and reminders' },
+      { key: 'payments', label: 'Connect Stripe (your customers)', done: comms.stripe.configured, optional: true, href: '/settings?tab=integrations', detail: 'Needed for payment links on invoices' },
+      { key: 'voice', label: 'Voice AI', done: comms.voice.configured && voiceAgents > 0, optional: true, href: '/voice-ai', detail: comms.voice.configured ? `${voiceAgents} agent(s)` : 'Connect Vapi to answer calls with AI' },
+      { key: 'employees', label: 'Activate AI employees', done: agentsEnabled > 0, optional: false, href: '/workforce', detail: `${agentsEnabled} enabled` },
+      { key: 'automations', label: 'Automations', done: rules > 0, optional: true, href: '/automation', detail: `${rules} active rule(s)` },
+      { key: 'website', label: 'Website', done: sites > 0, optional: true, href: '/websites', detail: sites ? `${sites} site(s)` : 'Publish a landing page with a lead form' },
+    ];
+    const required = items.filter((i) => !i.optional);
+    return {
+      items,
+      requiredDone: required.filter((i) => i.done).length,
+      requiredTotal: required.length,
+      launchReady: required.every((i) => i.done),
+    };
   }
 
   /** Recent audit history for Settings → Audit (read-only). */

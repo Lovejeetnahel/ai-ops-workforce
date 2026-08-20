@@ -3,6 +3,7 @@ import { IsEmail, IsString, MinLength } from 'class-validator';
 import { RolesGuard } from '../../common/rbac/roles.guard';
 import { Roles } from '../../common/rbac/roles.decorator';
 import { PortalAuthService } from './portal-auth.service';
+import { EntitlementsService } from '../../common/entitlements/entitlements.service';
 
 class PortalLoginDto {
   @IsString() tenantSlug: string;
@@ -18,7 +19,10 @@ class CreatePortalUserDto {
 
 @Controller('portal/auth')
 export class PortalAuthController {
-  constructor(private readonly auth: PortalAuthService) {}
+  constructor(
+    private readonly auth: PortalAuthService,
+    private readonly entitlements: EntitlementsService,
+  ) {}
 
   /** Public customer login (tenant-branded). */
   @Post('login')
@@ -30,7 +34,8 @@ export class PortalAuthController {
   @Post('users')
   @UseGuards(RolesGuard)
   @Roles('STAFF')
-  create(@Body() dto: CreatePortalUserDto) {
+  async create(@Body() dto: CreatePortalUserDto) {
+    await this.entitlements.require('portalUsers');
     return this.auth.createForContact(dto.contactId, dto.email, dto.password);
   }
 }

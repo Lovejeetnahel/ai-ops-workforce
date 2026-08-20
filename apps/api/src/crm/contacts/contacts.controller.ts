@@ -3,6 +3,7 @@ import { IsArray, IsOptional, IsString, MaxLength } from 'class-validator';
 import { RolesGuard } from '../../common/rbac/roles.guard';
 import { Roles } from '../../common/rbac/roles.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { EntitlementsService } from '../../common/entitlements/entitlements.service';
 
 class CreateContactDto {
   @IsString() @MaxLength(200) name: string;
@@ -27,7 +28,10 @@ class UpdateContactDto {
 @Controller('contacts')
 @UseGuards(RolesGuard)
 export class ContactsController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly entitlements: EntitlementsService,
+  ) {}
 
   @Get()
   @Roles('STAFF')
@@ -72,7 +76,10 @@ export class ContactsController {
 
   @Post()
   @Roles('STAFF')
-  create(@Body() dto: CreateContactDto) {
+  async create(@Body() dto: CreateContactDto) {
+    // Plan limit applies to manual creation only — inbound leads (website
+    // forms, portal, calls) are the customer's own data and are never blocked.
+    await this.entitlements.require('contacts');
     return this.prisma.db.contact.create({
       data: {
         name: dto.name.trim(),

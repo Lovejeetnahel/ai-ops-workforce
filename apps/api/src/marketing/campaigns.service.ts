@@ -6,6 +6,7 @@ import { CommsService } from '../integrations/comms.service';
 import { EventBus } from '../automation/event-bus';
 import { DomainEvents } from '../automation/events';
 import { tenantContext } from '../common/tenancy/tenant-context';
+import { EntitlementsService } from '../common/entitlements/entitlements.service';
 
 /** Max recipients per campaign start — keeps V1 sends inline and accountable. */
 const MAX_RECIPIENTS = 500;
@@ -36,6 +37,7 @@ export class CampaignsService {
     private readonly providers: ProviderFactory,
     private readonly comms: CommsService,
     private readonly bus: EventBus,
+    private readonly entitlements: EntitlementsService,
   ) {}
 
   list(filter?: { status?: string; templates?: boolean }) {
@@ -144,7 +146,9 @@ export class CampaignsService {
 
   /**
    * Start the campaign: materialize recipients, send through the real
-   * provider, record per-recipient truth. Requires prior approval.
+   * provider, record per-recipient truth. Requires prior approval. The status
+   * flip to ACTIVE is a compare-and-swap so a manual click and the Sprint 4
+   * scheduler sweep can never double-run the same campaign.
    */
   async start(id: string) {
     const campaign = await this.getBare(id);
@@ -169,15 +173,43 @@ export class CampaignsService {
     });
     if (contacts.length === 0) throw new BadRequestException('The audience filter matches no contacts');
 
-    await this.prisma.db.campaign.update({ where: { id }, data: { status: 'ACTIVE', startedAt: campaign.startedAt ?? new Date() } });
+    // Plan enforcement: a bulk send counts against the monthly message limit.
+    // Only NEW recipients count — a paused resume never double-counts.
+    const alreadyAttempted = await this.prisma.db.campaignRecipient.count({ where: { campaignId: id, status: { not: 'PENDING' } } });
+    await this.entitlements.require('messagesMonthly', Math.max(1, contacts.length - alreadyAttempted));
+
+    // CAS claim: only one caller (human or scheduler) flips it to ACTIVE.
+    const claimed = await this.prisma.db.campaign.updateMany({
+      where: { id, status: { in: ['DRAFT', 'SCHEDULED', 'PAUSED'] } },
+      data: { status: 'ACTIVE', startedAt: campaign.startedAt ?? new Date() },
+    });
+    if (claimed.count === 0) throw new BadRequestException('Campaign was already started by another request');
+
     await this.bus.emit({
       name: DomainEvents.CAMPAIGN_STARTED,
       tenantId: tenantContext.tenantId,
       payload: { campaign: { id, name: campaign.name, channel: campaign.channel }, audienceSize: contacts.length },
     });
 
-    let sent = 0, failed = 0, skipped = 0;
+    return this.executeSend(campaign, contacts);
+  }
+
+  /**
+   * The send loop, shared by manual start, scheduled execution and retry.
+   * Per-recipient idempotency (unique campaignId+contactId, only PENDING rows
+   * are attempted) guarantees no duplicate messages across any combination of
+   * restarts, retries and concurrent calls. A pause/cancel flips the campaign
+   * status and the loop honors it within one batch (checked every 25 sends).
+   */
+  private async executeSend(campaign: { id: string; name: string; channel: string; subject: string | null; content: string }, contacts: Array<{ id: string; name: string; phone: string | null; email: string | null }>) {
+    const id = campaign.id;
+    let sent = 0, failed = 0, skipped = 0, halted = false;
+    let i = 0;
     for (const contact of contacts) {
+      if (i++ % 25 === 24) {
+        const fresh = await this.prisma.db.campaign.findFirst({ where: { id }, select: { id: true, tenantId: true, status: true } });
+        if (fresh && ['PAUSED', 'CANCELLED'].includes(fresh.status)) { halted = true; break; }
+      }
       // Idempotent per contact: re-starting a paused campaign never re-sends.
       const existing = await this.prisma.db.campaignRecipient.findFirst({
         where: { campaignId: id, contactId: contact.id },
@@ -213,13 +245,48 @@ export class CampaignsService {
       }
     }
 
-    const done = await this.prisma.db.campaign.update({ where: { id }, data: { status: 'COMPLETED', completedAt: new Date() } });
-    await this.bus.emit({
-      name: DomainEvents.CAMPAIGN_COMPLETED,
-      tenantId: tenantContext.tenantId,
-      payload: { campaign: { id, name: campaign.name }, sent, failed, skipped },
+    const result = { sent, failed, skipped, audience: contacts.length, partialFailure: failed > 0, halted, finishedAt: new Date().toISOString() };
+    let done;
+    if (halted) {
+      done = await this.getBare(id);
+      await this.prisma.db.campaign.update({ where: { id }, data: { meta: { ...((done as any).meta ?? {}), lastRun: result } as any } });
+    } else {
+      const prev = await this.getBare(id);
+      done = await this.prisma.db.campaign.update({
+        where: { id },
+        data: { status: 'COMPLETED', completedAt: new Date(), meta: { ...((prev as any).meta ?? {}), lastRun: result } as any },
+      });
+      await this.bus.emit({
+        name: DomainEvents.CAMPAIGN_COMPLETED,
+        tenantId: tenantContext.tenantId,
+        payload: { campaign: { id, name: campaign.name }, sent, failed, skipped },
+      });
+    }
+    return { campaign: done, ...result };
+  }
+
+  /**
+   * Sprint 4: retry ONLY failed recipients of a completed/paused run. Safe by
+   * construction — SENT/SKIPPED rows are untouched, so no duplicate message
+   * can be produced; each retried row keeps its per-contact idempotency.
+   */
+  async retryFailed(id: string) {
+    const campaign = await this.getBare(id);
+    if (!['COMPLETED', 'PAUSED'].includes(campaign.status))
+      throw new BadRequestException(`Only completed/paused campaigns can retry failures (status: ${campaign.status})`);
+    const comms = await this.providers.commsStatus(tenantContext.tenantId);
+    const configured = campaign.channel === 'EMAIL' ? comms.email.configured : comms.sms.configured;
+    if (!configured) throw new ServiceUnavailableException('Sending requires a connected provider — Settings → Integrations.');
+    const failedRows = await this.prisma.db.campaignRecipient.findMany({
+      where: { campaignId: id, status: 'FAILED' },
+      include: { contact: { select: { id: true, name: true, phone: true, email: true } } },
+      take: MAX_RECIPIENTS,
     });
-    return { campaign: done, sent, failed, skipped, audience: contacts.length };
+    if (failedRows.length === 0) return { retried: 0, sent: 0, failed: 0, note: 'No failed recipients to retry' };
+    // Reset the failed rows to PENDING so executeSend picks exactly them up.
+    await this.prisma.db.campaignRecipient.updateMany({ where: { campaignId: id, status: 'FAILED' }, data: { status: 'PENDING', error: null } });
+    const outcome = await this.executeSend(campaign, failedRows.map((r) => r.contact));
+    return { retried: failedRows.length, ...outcome };
   }
 
   /**
