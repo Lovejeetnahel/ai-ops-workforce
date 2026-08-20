@@ -79,8 +79,9 @@ console.log('— Successful test payment → webhook → active subscription —
 const prices = await stripe('GET', '/prices?active=true&limit=100');
 const priceOf = (plan) => (prices.data ?? []).find((p) => p.metadata?.sofilic_plan === plan && p.recurring?.interval === 'month')?.id;
 ok('provisioned prices found (starter/pro/enterprise)', !!priceOf('starter') && !!priceOf('pro') && !!priceOf('enterprise'));
-await stripe('POST', `/payment_methods/pm_card_visa/attach`, { customer: customerId });
-await stripe('POST', `/customers/${customerId}`, { 'invoice_settings[default_payment_method]': 'pm_card_visa' });
+// Attaching the shared test alias mints a NEW PaymentMethod id — use it.
+const pmVisa = await stripe('POST', `/payment_methods/pm_card_visa/attach`, { customer: customerId });
+await stripe('POST', `/customers/${customerId}`, { 'invoice_settings[default_payment_method]': pmVisa.id });
 const sub = await stripe('POST', '/subscriptions', {
   customer: customerId,
   'items[0][price]': priceOf('starter'),
@@ -134,8 +135,8 @@ console.log('— Failed-payment scenario (separate tenant, failing test card) �
 const B = await mk('F');
 await req('POST', '/billing/checkout', { token: B.token, body: { planKey: 'starter' } }); // creates the Stripe customer
 const custB = (await req('GET', '/billing/overview', { token: B.token })).json.subscription?.stripeCustomerId;
-await stripe('POST', `/payment_methods/pm_card_chargeCustomerFail/attach`, { customer: custB });
-await stripe('POST', `/customers/${custB}`, { 'invoice_settings[default_payment_method]': 'pm_card_chargeCustomerFail' });
+const pmFail = await stripe('POST', `/payment_methods/pm_card_chargeCustomerFail/attach`, { customer: custB });
+await stripe('POST', `/customers/${custB}`, { 'invoice_settings[default_payment_method]': pmFail.id });
 let failedSubId = null;
 try {
   const failedSub = await stripe('POST', '/subscriptions', {
