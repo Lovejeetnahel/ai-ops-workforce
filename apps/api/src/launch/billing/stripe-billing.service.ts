@@ -225,7 +225,12 @@ export class StripeBillingService {
       this.logger.warn(`Stripe subscription ${stripeSub?.id} could not be matched to a tenant`);
       return null;
     }
-    const priceId = stripeSub.items?.data?.[0]?.price?.id;
+    const item0 = stripeSub.items?.data?.[0];
+    const priceId = item0?.price?.id;
+    // Newer Stripe API versions report the billing period on the subscription
+    // ITEM, not the subscription — read both so renewal dates are never lost.
+    const periodStart = stripeSub.current_period_start ?? item0?.current_period_start;
+    const periodEnd = stripeSub.current_period_end ?? item0?.current_period_end;
     const plan = PLANS.find((p) => process.env[p.stripePriceEnv] && process.env[p.stripePriceEnv] === priceId);
     const status: string = stripeSub.status;
     if (status === 'incomplete') {
@@ -239,8 +244,8 @@ export class StripeBillingService {
       stripeRef: stripeSub.id,
       stripeCustomerId: String(stripeSub.customer),
       cancelAtPeriodEnd: !!stripeSub.cancel_at_period_end,
-      currentPeriodStart: stripeSub.current_period_start ? new Date(stripeSub.current_period_start * 1000) : null,
-      currentPeriodEnd: stripeSub.current_period_end ? new Date(stripeSub.current_period_end * 1000) : null,
+      currentPeriodStart: periodStart ? new Date(periodStart * 1000) : null,
+      currentPeriodEnd: periodEnd ? new Date(periodEnd * 1000) : null,
       trialEndsAt: stripeSub.trial_end ? new Date(stripeSub.trial_end * 1000) : undefined,
       ...(plan ? { planKey: plan.key, seats: plan.seats } : {}),
     };
