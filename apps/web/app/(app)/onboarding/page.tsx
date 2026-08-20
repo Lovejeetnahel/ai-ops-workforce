@@ -4,16 +4,19 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 
-type StepId = 'confirm' | 'business' | 'modules' | 'team' | 'first-lead' | 'integrations' | 'employees' | 'command';
+type StepId = 'confirm' | 'plan' | 'business' | 'modules' | 'services' | 'team' | 'first-lead' | 'integrations' | 'employees' | 'command' | 'launch';
 const STEPS: { id: StepId; label: string }[] = [
   { id: 'confirm', label: 'Confirm business' },
+  { id: 'plan', label: 'Plan & trial' },
   { id: 'business', label: 'Configure your business' },
   { id: 'modules', label: 'Your modules' },
+  { id: 'services', label: 'Services & prices' },
   { id: 'team', label: 'Invite your team' },
   { id: 'first-lead', label: 'First lead' },
   { id: 'integrations', label: 'Connect tools' },
   { id: 'employees', label: 'AI employees' },
   { id: 'command', label: 'Try a command' },
+  { id: 'launch', label: 'Launch checklist' },
 ];
 
 /** Common IANA timezones for North American local-service businesses, plus a
@@ -56,6 +59,13 @@ export default function OnboardingPage() {
   const [kpiTargets, setKpiTargets] = useState<Record<string, string>>({});
   const [applying, setApplying] = useState(false);
   const [applyError, setApplyError] = useState<string | null>(null);
+
+  // Sprint 4: plan/trial, services, launch checklist
+  const [billingOverview, setBillingOverview] = useState<any>(null);
+  const [svcForm, setSvcForm] = useState({ name: '', durationMin: '60', price: '' });
+  const [services, setServices] = useState<any[] | null>(null);
+  const [svcBusy, setSvcBusy] = useState(false);
+  const [checklist, setChecklist] = useState<any>(null);
 
   const applyBusinessConfig = async () => {
     setApplying(true);
@@ -130,6 +140,15 @@ export default function OnboardingPage() {
 
   // Load the roster lazily when the employees step is first shown.
   useEffect(() => {
+    if (loaded && STEPS[step].id === 'plan' && billingOverview === null) {
+      api.billingOverview().then(setBillingOverview).catch(() => setBillingOverview(false));
+    }
+    if (loaded && STEPS[step].id === 'services' && services === null) {
+      api.commerceCatalog().then(setServices).catch(() => setServices([]));
+    }
+    if (loaded && STEPS[step].id === 'launch' && checklist === null) {
+      api.launchChecklist().then(setChecklist).catch(() => setChecklist(false));
+    }
     if (loaded && STEPS[step].id === 'employees' && employees === null) {
       api.employees().then(setEmployees).catch(() => setEmployees([]));
     }
@@ -290,6 +309,71 @@ export default function OnboardingPage() {
           {tzError && <div className="auth-err">{tzError}</div>}
           <p className="muted">{config?.tagline}</p>
           <button className="btn" disabled={tzSaving} onClick={confirmBusiness}>{tzSaving ? 'Saving…' : 'Looks good, continue'}</button>
+        </div>
+      )}
+
+      {STEPS[step].id === 'plan' && (
+        <div className="panel">
+          <h3>Your plan</h3>
+          {billingOverview === null ? <div className="skeleton" style={{ height: 80 }} /> :
+          billingOverview === false ? <p className="muted">Billing state unavailable right now — you can manage your plan any time in Settings → Billing.</p> : (
+            <>
+              <p style={{ fontSize: 14 }}>
+                You&rsquo;re on the <strong>{billingOverview.plan?.name}</strong> plan
+                <span className="tag" style={{ marginLeft: 8 }}>{String(billingOverview.state).replace(/_/g, ' ')}</span>
+              </p>
+              {billingOverview.trialEndsAt && billingOverview.state === 'trialing' && (
+                <p className="muted" style={{ fontSize: 13 }}>
+                  Free trial until {new Date(billingOverview.trialEndsAt).toLocaleDateString()} — full {billingOverview.plan?.name} limits, no card required.
+                </p>
+              )}
+              {!billingOverview.subscription && (
+                <button className="btn sm" onClick={async () => { await api.billingStartTrial().catch(() => {}); setBillingOverview(null); }}>Start free trial</button>
+              )}
+              <p className="muted" style={{ fontSize: 12 }}>
+                Included this month: {billingOverview.plan?.limits?.staffSeats} staff seats · {billingOverview.plan?.limits?.aiTasksMonthly} AI tasks · {billingOverview.plan?.limits?.messagesMonthly} messages · {billingOverview.plan?.limits?.voiceMinutesMonthly} voice minutes.
+                Upgrade, downgrade or cancel any time in Settings → Billing &amp; usage.
+              </p>
+            </>
+          )}
+          <button className="btn" onClick={() => goNext('plan')}>Continue</button>
+        </div>
+      )}
+
+      {STEPS[step].id === 'services' && (
+        <div className="panel">
+          <h3>What do you sell? (optional)</h3>
+          <p className="muted" style={{ marginBottom: 12 }}>
+            Services power booking links, estimates and invoices. Add one now or later in Apps → Appointments.
+          </p>
+          {services === null ? <div className="skeleton" style={{ height: 40 }} /> : services.length > 0 && (
+            services.map((sv: any) => (
+              <div className="agent-row" key={sv.id}>
+                <span style={{ flex: 1 }}>{sv.name}</span>
+                <span className="muted" style={{ fontSize: 12 }}>{sv.durationMin} min{sv.priceCents != null ? ` · $${(sv.priceCents / 100).toFixed(2)}` : ''}</span>
+              </div>
+            ))
+          )}
+          <div className="grid-2" style={{ marginTop: 8 }}>
+            <div className="field"><label>Service name</label><input value={svcForm.name} onChange={(e) => setSvcForm({ ...svcForm, name: e.target.value })} placeholder="AC tune-up" /></div>
+            <div className="field"><label>Duration (min) / price ($)</label>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input style={{ width: 90 }} value={svcForm.durationMin} onChange={(e) => setSvcForm({ ...svcForm, durationMin: e.target.value })} />
+                <input style={{ flex: 1 }} value={svcForm.price} onChange={(e) => setSvcForm({ ...svcForm, price: e.target.value })} placeholder="129" />
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button className="btn ghost" disabled={svcBusy || !svcForm.name.trim()} onClick={async () => {
+              setSvcBusy(true);
+              try {
+                await api.createOffering({ name: svcForm.name.trim(), durationMin: parseInt(svcForm.durationMin, 10) || 60, priceCents: svcForm.price ? Math.round(parseFloat(svcForm.price) * 100) : undefined });
+                setSvcForm({ name: '', durationMin: '60', price: '' });
+                setServices(null);
+              } finally { setSvcBusy(false); }
+            }}>{svcBusy ? 'Adding…' : '+ Add service'}</button>
+            <button className="btn" onClick={() => goNext('services')}>Next</button>
+          </div>
         </div>
       )}
 
@@ -527,16 +611,47 @@ export default function OnboardingPage() {
           )}
           <div style={{ display: 'flex', gap: 10 }}>
             {cmdResult ? (
-              <button className="btn" onClick={async () => { await markComplete('command'); finish(); }}>Finish — take me to my dashboard</button>
+              <button className="btn" onClick={() => goNext('command')}>Continue to launch checklist</button>
             ) : (
               <>
                 <button className="btn" disabled={cmdRunning || cmdText.trim().length < 2} onClick={runFirstCommand}>
                   {cmdRunning ? 'Running…' : 'Run it'}
                 </button>
-                <button className="btn ghost" onClick={finish}>Skip — take me to the dashboard</button>
+                <button className="btn ghost" onClick={() => goNext('command')}>Skip</button>
               </>
             )}
           </div>
+        </div>
+      )}
+
+      {STEPS[step].id === 'launch' && (
+        <div className="panel">
+          <h3>Launch checklist</h3>
+          <p className="muted" style={{ marginBottom: 12 }}>
+            Every state below is computed from your real configuration — nothing is checked off that isn&rsquo;t actually set up. Optional items never block you.
+          </p>
+          {checklist === null ? <div className="skeleton" style={{ height: 120 }} /> :
+          checklist === false ? <p className="muted">Checklist unavailable right now.</p> : (
+            <>
+              <p style={{ fontSize: 13.5 }}>
+                {checklist.requiredDone} of {checklist.requiredTotal} required steps done
+                {checklist.launchReady && <span className="chip ok" style={{ marginLeft: 8 }}>Ready to operate</span>}
+              </p>
+              {checklist.items.map((it: any) => (
+                <div className="agent-row" key={it.key}>
+                  <span style={{ width: 22 }}>{it.done ? '✅' : it.optional ? '◻️' : '⬜'}</span>
+                  <span style={{ flex: 1 }}>
+                    {it.label}{it.optional && <span className="muted" style={{ fontSize: 11 }}> (optional)</span>}
+                    <span className="muted" style={{ display: 'block', fontSize: 11.5 }}>{it.detail}</span>
+                  </span>
+                  {!it.done && <Link className="btn ghost sm" href={it.href}>Set up</Link>}
+                </div>
+              ))}
+            </>
+          )}
+          <button className="btn" style={{ marginTop: 12 }} onClick={async () => { await markComplete('launch'); finish(); }}>
+            Finish — take me to my dashboard
+          </button>
         </div>
       )}
     </>

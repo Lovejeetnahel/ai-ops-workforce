@@ -54,7 +54,19 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     },
     cache: 'no-store',
   });
-  if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+  if (!res.ok) {
+    // Surface the API's own message (plan limits, setup-required, validation)
+    // instead of a raw JSON blob — every toast/error state stays readable.
+    const text = await res.text();
+    let message = `${res.status} ${text}`;
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed?.message) message = Array.isArray(parsed.message) ? parsed.message.join('; ') : String(parsed.message);
+    } catch {}
+    const err: any = new Error(message);
+    err.status = res.status;
+    throw err;
+  }
   return res.json() as Promise<T>;
 }
 
@@ -373,6 +385,51 @@ export const api = {
   sessions: () => request<any[]>(`/auth/sessions`),
   revokeSession: (id: string) => request<any>(`/auth/sessions/${id}/revoke`, { method: 'POST' }),
   dataRequest: (type: 'EXPORT' | 'DELETE') => request<any>(`/tenants/data-request`, { method: 'POST', body: JSON.stringify({ type }) }),
+
+  // ── Sprint 4: monetization & activation ──
+  billingOverview: () => request<any>(`/billing/overview`),
+  billingInvoices: () => request<any>(`/billing/invoices`),
+  billingEvents: () => request<any[]>(`/billing/events`),
+  billingWebhookDeliveries: () => request<any[]>(`/billing/webhook-deliveries`),
+  billingStartTrial: (planKey?: string) => request<any>(`/billing/start-trial`, { method: 'POST', body: JSON.stringify({ planKey }) }),
+  billingCheckout: (planKey: string) => request<any>(`/billing/checkout`, { method: 'POST', body: JSON.stringify({ planKey }) }),
+  billingPortal: () => request<any>(`/billing/portal`, { method: 'POST' }),
+  billingChangePlan: (planKey: string) => request<any>(`/billing/change-plan`, { method: 'POST', body: JSON.stringify({ planKey }) }),
+  billingCancel: () => request<any>(`/billing/cancel`, { method: 'POST' }),
+  billingReactivate: () => request<any>(`/billing/reactivate`, { method: 'POST' }),
+  integrationCenter: () => request<any[]>(`/tenants/integrations`),
+  connectIntegration: (provider: string, config: Record<string, string>) =>
+    request<any>(`/tenants/integrations/${provider}`, { method: 'POST', body: JSON.stringify(config) }),
+  disconnectIntegration: (provider: string) => request<any>(`/tenants/integrations/${provider}`, { method: 'DELETE' }),
+  verifyIntegration: (provider: string) => request<any>(`/tenants/integrations/${provider}/verify`, { method: 'POST' }),
+  launchChecklist: () => request<any>(`/tenants/launch-checklist`),
+  voiceSetup: () => request<any>(`/voice-ai/setup`),
+  voiceOutboundAuthorization: (agentId: string, authorized: boolean) =>
+    request<any>(`/voice-ai/agents/${agentId}/outbound-authorization`, { method: 'POST', body: JSON.stringify({ authorized }) }),
+  callCreateLead: (callId: string, body?: { title?: string; estimatedValue?: number }) =>
+    request<any>(`/voice-ai/calls/${callId}/create-lead`, { method: 'POST', body: JSON.stringify(body ?? {}) }),
+  callCreateBooking: (callId: string, body: { userId: string; start: string; durationMin?: number; notes?: string }) =>
+    request<any>(`/voice-ai/calls/${callId}/create-booking`, { method: 'POST', body: JSON.stringify(body) }),
+  commerceCatalog: () => request<any[]>(`/commerce/catalog`),
+  commerceStats: () => request<any>(`/commerce/stats`),
+  commerceFlow: (leadId: string) => request<any>(`/commerce/flow/${leadId}`),
+  commerceCreateEstimate: (body: Record<string, unknown>) => request<any>(`/commerce/estimates`, { method: 'POST', body: JSON.stringify(body) }),
+  commerceSendEstimate: (id: string) => request<any>(`/commerce/estimates/${id}/send`, { method: 'POST' }),
+  commerceAcceptEstimate: (id: string) => request<any>(`/commerce/estimates/${id}/accept`, { method: 'POST' }),
+  commerceDeclineEstimate: (id: string, reason?: string) => request<any>(`/commerce/estimates/${id}/decline`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  commerceConvertEstimate: (id: string) => request<any>(`/commerce/estimates/${id}/convert`, { method: 'POST' }),
+  campaignRetryFailed: (id: string) => request<any>(`/marketing/campaigns/${id}/retry-failed`, { method: 'POST' }),
+  adminSaasMetrics: (adminToken: string) =>
+    request<any>(`/admin/saas-metrics`, { headers: { 'X-Admin-Token': adminToken } }),
+  adminWebhooks: (adminToken: string, params?: { provider?: string; state?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.provider) q.set('provider', params.provider);
+    if (params?.state) q.set('state', params.state);
+    const qs = q.toString();
+    return request<any[]>(`/admin/webhooks${qs ? `?${qs}` : ''}`, { headers: { 'X-Admin-Token': adminToken } });
+  },
+  adminRetryWebhook: (adminToken: string, id: string) =>
+    request<any>(`/admin/webhooks/${id}/retry`, { method: 'POST', headers: { 'X-Admin-Token': adminToken } }),
 
   // public marketing site (no auth)
   contactUs: (body: { name: string; email: string; company?: string; topic?: string; message: string; website?: string }) =>

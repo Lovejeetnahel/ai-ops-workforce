@@ -6,7 +6,7 @@ import { useToast } from '../../../components/Toast';
 
 type Tab = 'invoices' | 'estimates' | 'transactions' | 'subscription';
 
-const STATUS_CHIP: Record<string, string> = { PAID: 'ok', ACCEPTED: 'ok', SENT: 'warn', VIEWED: 'warn', DRAFT: 'warn', OVERDUE: 'err', SUCCEEDED: 'ok', PENDING: 'warn', FAILED: 'err', REFUNDED: 'warn' };
+const STATUS_CHIP: Record<string, string> = { PAID: 'ok', ACCEPTED: 'ok', SIGNED: 'ok', SENT: 'warn', VIEWED: 'warn', DRAFT: 'warn', VOID: 'err', OVERDUE: 'err', SUCCEEDED: 'ok', PENDING: 'warn', FAILED: 'err', REFUNDED: 'warn' };
 const money = (n: number) => `$${Number(n ?? 0).toLocaleString()}`;
 
 /**
@@ -28,6 +28,8 @@ export default function PaymentsPage() {
   const [busy, setBusy] = useState(false);
   const [recordFor, setRecordFor] = useState<any>(null);
   const [recordMethod, setRecordMethod] = useState('cash');
+  const [commerceStats, setCommerceStats] = useState<any>(null);
+  const [catalog, setCatalog] = useState<any[]>([]);
 
   const load = useCallback(() => {
     api.documents('INVOICE').then(setInvoices).catch(() => setInvoices([]));
@@ -35,9 +37,15 @@ export default function PaymentsPage() {
     api.paymentsList().then(setPayments).catch(() => setPayments([]));
     api.billingSummary().then(setSummary).catch(() => {});
     api.conversationChannels().then((c) => setChannels(c)).catch(() => setChannels([]));
+    api.commerceStats().then(setCommerceStats).catch(() => {});
   }, []);
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { if (createOpen) api.contacts().then(setContacts).catch(() => setContacts([])); }, [createOpen]);
+  useEffect(() => {
+    if (createOpen) {
+      api.contacts().then(setContacts).catch(() => setContacts([]));
+      if (catalog.length === 0) api.commerceCatalog().then(setCatalog).catch(() => {});
+    }
+  }, [createOpen, catalog.length]);
 
   const createDoc = async () => {
     if (!nd.amount || Number(nd.amount) <= 0) return;
@@ -84,9 +92,12 @@ export default function PaymentsPage() {
                 <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                   {d.status === 'DRAFT' && <button className="btn ghost sm" onClick={() => act(() => api.sendDocument(d.id), 'Sent')}>Send</button>}
                   {kind === 'QUOTE' && ['SENT', 'VIEWED'].includes(d.status) && (
-                    <button className="btn ghost sm" onClick={() => act(() => api.acceptQuote(d.id), 'Marked accepted')}>Mark accepted</button>
+                    <>
+                      <button className="btn ghost sm" onClick={() => act(() => api.acceptQuote(d.id), 'Marked accepted')}>Mark accepted</button>
+                      <button className="btn ghost sm" onClick={() => act(() => api.commerceDeclineEstimate(d.id), 'Marked declined')}>Declined</button>
+                    </>
                   )}
-                  {kind === 'QUOTE' && d.status === 'ACCEPTED' && (
+                  {kind === 'QUOTE' && ['ACCEPTED', 'SIGNED'].includes(d.status) && (
                     <button className="btn ghost sm" onClick={() => act(() => api.convertQuote(d.id), 'Converted to invoice')}>→ Invoice</button>
                   )}
                   {kind === 'INVOICE' && ['SENT', 'VIEWED'].includes(d.status) && (
@@ -131,7 +142,19 @@ export default function PaymentsPage() {
       </div>
 
       {tab === 'invoices' && <div className="panel"><DocTable docs={invoices} kind="INVOICE" /></div>}
-      {tab === 'estimates' && <div className="panel"><DocTable docs={quotes} kind="QUOTE" /></div>}
+      {tab === 'estimates' && (
+        <>
+          {commerceStats?.estimates && (
+            <div className="grid-kpi" style={{ marginBottom: 12 }}>
+              <div className="panel"><div className="muted">Outstanding</div><div className="kpi">{commerceStats.estimates.outstanding}</div></div>
+              <div className="panel"><div className="muted">Accepted</div><div className="kpi">{commerceStats.estimates.accepted}</div></div>
+              <div className="panel"><div className="muted">Acceptance rate</div><div className="kpi">{commerceStats.estimates.acceptanceRate != null ? `${commerceStats.estimates.acceptanceRate}%` : '—'}</div></div>
+              <div className="panel"><div className="muted">Collected</div><div className="kpi">{money(commerceStats.collected?.total ?? 0)}</div></div>
+            </div>
+          )}
+          <div className="panel"><DocTable docs={quotes} kind="QUOTE" /></div>
+        </>
+      )}
 
       {tab === 'transactions' && (
         <div className="panel">

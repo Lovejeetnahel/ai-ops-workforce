@@ -4,7 +4,7 @@ import { api } from '../../../lib/api';
 import { Modal } from '../../../components/Modal';
 import { useToast } from '../../../components/Toast';
 
-const TABS = ['Agents', 'Call log', 'Usage'] as const;
+const TABS = ['Setup', 'Agents', 'Call log', 'Usage'] as const;
 type Tab = (typeof TABS)[number];
 
 const CALL_CHIP: Record<string, string> = { COMPLETED: 'ok', IN_PROGRESS: 'warn', FAILED: 'err', NO_ANSWER: 'err', HANDED_OFF: 'warn' };
@@ -17,6 +17,7 @@ const CALL_CHIP: Record<string, string> = { COMPLETED: 'ok', IN_PROGRESS: 'warn'
 export default function VoiceAiPage() {
   const toast = useToast();
   const [tab, setTab] = useState<Tab>('Agents');
+  const [setup, setSetup] = useState<any>(null);
   const [agents, setAgents] = useState<any[] | null>(null);
   const [calls, setCalls] = useState<any>(null);
   const [usage, setUsage] = useState<any>(null);
@@ -30,6 +31,7 @@ export default function VoiceAiPage() {
   }, []);
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
+    if (tab === 'Setup' && setup === null) api.voiceSetup().then(setSetup).catch(() => setSetup(false));
     if (tab === 'Call log' && calls === null) api.voiceCalls().then(setCalls).catch(() => setCalls(false));
     if (tab === 'Usage' && usage === null) api.voiceUsage().then(setUsage).catch(() => setUsage(false));
   }, [tab, calls, usage]);
@@ -75,6 +77,56 @@ export default function VoiceAiPage() {
       <div className="tabs">
         {TABS.map((t) => <button key={t} className={`tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>{t}</button>)}
       </div>
+
+      {tab === 'Setup' && (
+        <div className="panel">
+          <h3>Activation</h3>
+          {setup === null ? <div className="skeleton" style={{ height: 120 }} /> :
+          setup === false ? <p className="muted">Setup state unavailable right now.</p> : (
+            <>
+              {setup.complete
+                ? <p className="chip ok" style={{ display: 'inline-block' }}>Voice AI is live</p>
+                : <p className="muted" style={{ fontSize: 13 }}>Finish these steps to answer real calls with AI. Every state below is derived from real configuration.</p>}
+              {setup.steps.map((st: any, i: number) => (
+                <div className="agent-row" key={st.key}>
+                  <span style={{ width: 22 }}>{st.done ? '✅' : '⬜'}</span>
+                  <span style={{ flex: 1 }}>{i + 1}. {st.label}<span className="muted" style={{ display: 'block', fontSize: 11.5 }}>{st.detail}</span></span>
+                </div>
+              ))}
+              <div style={{ marginTop: 12, borderTop: '1px solid rgba(128,128,128,0.15)', paddingTop: 10 }}>
+                <strong style={{ fontSize: 13 }}>Provider phone numbers</strong>
+                {!setup.provider.configured ? (
+                  <p className="muted" style={{ fontSize: 12.5 }}>Connect Vapi in Settings → Integrations to see and assign real phone numbers.</p>
+                ) : setup.phoneNumbers.error ? (
+                  <p className="muted" style={{ fontSize: 12.5 }}>{setup.phoneNumbers.error}</p>
+                ) : setup.phoneNumbers.numbers.length === 0 ? (
+                  <p className="muted" style={{ fontSize: 12.5 }}>The provider account has no phone numbers yet — buy or import one in the Vapi dashboard, then it appears here.</p>
+                ) : (
+                  setup.phoneNumbers.numbers.map((n: any) => (
+                    <div className="agent-row" key={n.id}>
+                      <span style={{ flex: 1 }}>{n.number}{n.name ? ` — ${n.name}` : ''}</span>
+                      <select defaultValue="" onChange={async (e) => {
+                        if (!e.target.value) return;
+                        try {
+                          await api.updateVoiceAgent(e.target.value, { phoneNumber: n.number, providerRef: n.id });
+                          toast.success('Number assigned'); setSetup(null); setAgents(null);
+                        } catch (err: any) { toast.error('Could not assign', String(err?.message ?? '').slice(0, 160)); }
+                      }}>
+                        <option value="">Assign to agent…</option>
+                        {(setup.agents ?? []).map((a: any) => <option key={a.id} value={a.id}>{a.name}{a.phoneNumber === n.number ? ' (assigned)' : ''}</option>)}
+                      </select>
+                    </div>
+                  ))
+                )}
+                <p className="muted" style={{ fontSize: 11.5, marginTop: 8 }}>
+                  Webhook: <code style={{ fontSize: 11 }}>{setup.webhookPath}</code> — {setup.webhookNote}
+                </p>
+                <p className="muted" style={{ fontSize: 11.5 }}>{setup.outbound.note} Currently authorized: {setup.outbound.authorizedAgents} agent(s).</p>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {tab === 'Agents' && (
         agents === null ? <div className="panel"><div className="skeleton" style={{ height: 140 }} /></div> :
