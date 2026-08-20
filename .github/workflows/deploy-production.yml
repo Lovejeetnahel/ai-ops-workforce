@@ -15,9 +15,13 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'deploy | smoke | rollback | cleanup-test-tenants | logs | voyage-report | voyage-migrate'
+        description: 'deploy | smoke | rollback | cleanup-test-tenants | logs | voyage-report | voyage-migrate | billing-report | billing-configure | billing-verify'
         required: true
         default: 'deploy'
+      allow_live:
+        description: 'billing-configure: must be "true" to accept a LIVE Stripe key (test-first rule)'
+        required: false
+        default: 'false'
       search:
         description: 'logs: grep pattern (e.g. a correlation id)'
         required: false
@@ -174,6 +178,66 @@ jobs:
               LEFT=$(psql_t "SELECT count(*) FROM \"Tenant\" WHERE name LIKE 'ZZ RELEASE VERIFY%';")
               echo "SMOKE_CLEANUP_DONE remaining=${LEFT}"
               ;;
+            billing-report)
+              # READ-ONLY: presence booleans for the Stripe billing config —
+              # values are never read beyond the mode prefix, never printed.
+              for v in STRIPE_SECRET_KEY STRIPE_BILLING_SECRET_KEY STRIPE_BILLING_WEBHOOK_SECRET STRIPE_PRICE_STARTER STRIPE_PRICE_PRO STRIPE_PRICE_ENTERPRISE; do
+                grep -q "^${v}=..*" .env && echo "$v: present" || echo "$v: NOT set"
+              done
+              if grep -qE '^STRIPE_BILLING_SECRET_KEY=(sk|rk)_test_' .env; then echo "billing key mode: test"
+              elif grep -qE '^STRIPE_BILLING_SECRET_KEY=(sk|rk)_live_' .env; then echo "billing key mode: live"
+              else echo "billing key mode: n/a"; fi
+              echo "subscriptions_total=$(psql_t 'SELECT count(*) FROM "Subscription";')"
+              echo "billing_events_total=$(psql_t 'SELECT count(*) FROM "BillingEvent";')"
+              ;;
+            billing-configure)
+              # Founder-approved Stripe billing activation. The secret key and
+              # webhook signing secret arrive as the FIRST TWO LINES of stdin
+              # (never argv, never a file on the runner, never printed; Actions
+              # masks them regardless). Price ids are non-secret and prepended.
+              [ -n "${SBK:-}" ] || { echo "no billing key received on stdin"; exit 1; }
+              [ -n "${SWH:-}" ] || { echo "no webhook secret received on stdin"; exit 1; }
+              [ -n "${PRICE_STARTER:-}" ] && [ -n "${PRICE_PRO:-}" ] && [ -n "${PRICE_ENTERPRISE:-}" ] || { echo "price ids missing"; exit 1; }
+              case "$SBK" in
+                sk_test_*|rk_test_*) BMODE=test ;;
+                sk_live_*|rk_live_*) BMODE=live ;;
+                *) echo "unrecognized Stripe key format — aborting"; exit 1 ;;
+              esac
+              if [ "$BMODE" = "live" ] && [ "${ALLOW_LIVE:-false}" != "true" ]; then
+                echo "REFUSED: live-mode key without allow_live=true (test mode must be proven first)"; exit 1
+              fi
+              cp .env ".env.backup-${STAMP}" && chmod 600 ".env.backup-${STAMP}"
+              grep -vE '^(STRIPE_BILLING_SECRET_KEY|STRIPE_BILLING_WEBHOOK_SECRET|STRIPE_PRICE_STARTER|STRIPE_PRICE_PRO|STRIPE_PRICE_ENTERPRISE)=' .env > .env.new
+              printf 'STRIPE_BILLING_SECRET_KEY=%s\nSTRIPE_BILLING_WEBHOOK_SECRET=%s\nSTRIPE_PRICE_STARTER=%s\nSTRIPE_PRICE_PRO=%s\nSTRIPE_PRICE_ENTERPRISE=%s\n' "$SBK" "$SWH" "$PRICE_STARTER" "$PRICE_PRO" "$PRICE_ENTERPRISE" >> .env.new
+              chmod 600 .env.new && mv .env.new .env
+              echo "ENV_UPDATED billing_mode=${BMODE} vars_total=$(grep -c '=' .env) backup=.env.backup-${STAMP} (values not shown)"
+              docker compose up -d --force-recreate api worker
+              echo "== waiting 25s"; sleep 25
+              if ! curl -fsS http://127.0.0.1:4000/api/health | grep -q sofilic-api; then
+                echo "API_UNHEALTHY — restoring .env backup and recreating"
+                cp ".env.backup-${STAMP}" .env
+                docker compose up -d --force-recreate api worker
+                exit 1
+              fi
+              # Presence probe inside the container: booleans only, no values.
+              docker compose exec -T api node -e 'const e=process.env;console.log("BILLING_ENV key="+!!e.STRIPE_BILLING_SECRET_KEY+" whsec="+!!e.STRIPE_BILLING_WEBHOOK_SECRET+" prices="+[e.STRIPE_PRICE_STARTER,e.STRIPE_PRICE_PRO,e.STRIPE_PRICE_ENTERPRISE].every(Boolean))'
+              echo "BILLING_CONFIGURED mode=${BMODE}"
+              ;;
+            billing-verify)
+              # Runs AFTER the runner-side billing-verify.mjs suite. Reads the
+              # operator token from .env (used in a header only, never printed)
+              # to show the SaaS metrics BEFORE cleaning the verify tenants.
+              ADMIN_TOKEN_VAL=$(grep '^ADMIN_API_TOKEN=' .env | head -1 | cut -d= -f2-)
+              echo "== SaaS metrics after test-mode billing (aggregates only):"
+              curl -fsS -H "X-Admin-Token: ${ADMIN_TOKEN_VAL}" http://127.0.0.1:4000/api/admin/saas-metrics | head -c 1200 || echo "metrics fetch failed"
+              echo
+              psql_t "DELETE FROM \"Subscription\" WHERE \"tenantId\" IN (SELECT id FROM \"Tenant\" WHERE name LIKE 'ZZ RELEASE VERIFY%');" || true
+              psql_t "DELETE FROM \"BillingEvent\" WHERE \"tenantId\" IN (SELECT id FROM \"Tenant\" WHERE name LIKE 'ZZ RELEASE VERIFY%');" || true
+              psql_t "DELETE FROM \"WebhookDelivery\" WHERE \"tenantId\" IN (SELECT id FROM \"Tenant\" WHERE name LIKE 'ZZ RELEASE VERIFY%');" || true
+              psql_t "DELETE FROM \"Tenant\" WHERE name LIKE 'ZZ RELEASE VERIFY%';" || true
+              LEFT=$(psql_t "SELECT count(*) FROM \"Tenant\" WHERE name LIKE 'ZZ RELEASE VERIFY%';")
+              echo "BILLING_VERIFY_CLEANUP_DONE remaining=${LEFT}"
+              ;;
             voyage-migrate)
               # Founder-approved embeddings migration: rotate VOYAGE_API_KEY
               # (received via stdin only — never argv, never logged, masked by
@@ -254,15 +318,30 @@ jobs:
           node .github/smoke/sprint3-prod-smoke.mjs
           node .github/smoke/sprint4-prod-smoke.mjs
 
+      - name: Stripe billing provisioning (mode=billing-configure)
+        if: ${{ inputs.mode == 'billing-configure' }}
+        env:
+          STRIPE_BILLING_SECRET_KEY: ${{ secrets.STRIPE_BILLING_SECRET_KEY }}
+          ALLOW_LIVE: ${{ inputs.allow_live }}
+        run: node .github/smoke/billing-setup.mjs
+
+      - name: Test-mode billing verification (mode=billing-verify)
+        if: ${{ inputs.mode == 'billing-verify' }}
+        env:
+          STRIPE_BILLING_SECRET_KEY: ${{ secrets.STRIPE_BILLING_SECRET_KEY }}
+        run: node .github/smoke/billing-verify.mjs
+
       - name: Run on production
         # For mode=smoke this is the tenant cleanup — it must run even when
         # the smoke step failed, so verification tenants never linger.
-        if: ${{ success() || (inputs.mode == 'smoke' && !cancelled()) }}
+        if: ${{ success() || ((inputs.mode == 'smoke' || inputs.mode == 'billing-verify') && !cancelled()) }}
         env:
           HOST: ${{ secrets.PROD_SSH_HOST }}
           USER: ${{ secrets.PROD_SSH_USER }}
           PROD_SSH_PASSWORD: ${{ secrets.PROD_SSH_PASSWORD }}
           VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
+          STRIPE_BILLING_SECRET_KEY: ${{ secrets.STRIPE_BILLING_SECRET_KEY }}
+          ALLOW_LIVE_INPUT: ${{ inputs.allow_live }}
           MODE_INPUT: ${{ inputs.mode }}
         run: |
           set -euo pipefail
@@ -270,7 +349,21 @@ jobs:
           # voyage-migrate: the secret travels as the FIRST LINE of stdin,
           # consumed by `read` on the far side — never argv, never a file,
           # never printed (and Actions masks it in any output regardless).
-          if [ "$MODE_INPUT" = "voyage-migrate" ]; then
+          if [ "$MODE_INPUT" = "billing-configure" ]; then
+            # Both secrets travel as the FIRST TWO LINES of stdin (voyage
+            # pattern): never argv, never files, never printed. Price ids and
+            # the allow_live flag are non-secret and prepended into the script.
+            [ -n "${STRIPE_BILLING_SECRET_KEY:-}" ] || { echo "STRIPE_BILLING_SECRET_KEY GitHub secret is not set" >&2; exit 1; }
+            [ -n "${SETUP_WEBHOOK_SECRET:-}" ] || { echo "webhook secret missing from provisioning step" >&2; exit 1; }
+            sed -i "1i PRICE_STARTER='${SETUP_PRICE_STARTER}'; PRICE_PRO='${SETUP_PRICE_PRO}'; PRICE_ENTERPRISE='${SETUP_PRICE_ENTERPRISE}'; ALLOW_LIVE='${ALLOW_LIVE_INPUT}'" remote.sh
+            REMOTE_CMD='IFS= read -r SBK; IFS= read -r SWH; export SBK SWH; bash -s'
+            if [ "$AUTH_MODE" = "key" ]; then
+              { printf '%s\n%s\n' "$STRIPE_BILLING_SECRET_KEY" "$SETUP_WEBHOOK_SECRET"; cat remote.sh; } | ssh $SSH_OPTS -i ~/.ssh/prod_key "$USER@$HOST" "$REMOTE_CMD"
+            else
+              export SSHPASS="$PROD_SSH_PASSWORD"
+              { printf '%s\n%s\n' "$STRIPE_BILLING_SECRET_KEY" "$SETUP_WEBHOOK_SECRET"; cat remote.sh; } | sshpass -e ssh $SSH_OPTS "$USER@$HOST" "$REMOTE_CMD"
+            fi
+          elif [ "$MODE_INPUT" = "voyage-migrate" ]; then
             [ -n "${VOYAGE_API_KEY:-}" ] || { echo "VOYAGE_API_KEY secret is not set" >&2; exit 1; }
             REMOTE_CMD='IFS= read -r VOYAGE_NEW_KEY; export VOYAGE_NEW_KEY; bash -s'
             if [ "$AUTH_MODE" = "key" ]; then
