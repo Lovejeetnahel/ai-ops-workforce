@@ -16,7 +16,8 @@
  */
 import { appendFileSync } from 'node:fs';
 
-const KEY = process.env.STRIPE_BILLING_SECRET_KEY ?? '';
+// .trim(): pasted GitHub secrets often carry a stray leading/trailing newline.
+const KEY = (process.env.STRIPE_BILLING_SECRET_KEY ?? '').trim();
 const ALLOW_LIVE = process.env.ALLOW_LIVE === 'true';
 const WEBHOOK_URL = 'https://api.sofilic.com/api/webhooks/billing';
 

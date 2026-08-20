@@ -14,7 +14,7 @@
  *    step) and Stripe test customers are deleted at the end.
  */
 const API = 'https://api.sofilic.com/api';
-const KEY = process.env.STRIPE_BILLING_SECRET_KEY ?? '';
+const KEY = (process.env.STRIPE_BILLING_SECRET_KEY ?? '').trim();
 let pass = 0, fail = 0;
 const ok = (n, c, d = '') => { if (c) { pass++; console.log(`  PASS ${n}`); } else { fail++; console.log(`  FAIL ${n} ${d}`); } };
 

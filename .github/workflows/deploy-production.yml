@@ -354,6 +354,9 @@ jobs:
             # pattern): never argv, never files, never printed. Price ids and
             # the allow_live flag are non-secret and prepended into the script.
             [ -n "${STRIPE_BILLING_SECRET_KEY:-}" ] || { echo "STRIPE_BILLING_SECRET_KEY GitHub secret is not set" >&2; exit 1; }
+            # Strip any whitespace the paste carried — a leading newline would
+            # break the two-line stdin protocol and the key-format check.
+            STRIPE_BILLING_SECRET_KEY=$(printf '%s' "$STRIPE_BILLING_SECRET_KEY" | tr -d '[:space:]')
             [ -n "${SETUP_WEBHOOK_SECRET:-}" ] || { echo "webhook secret missing from provisioning step" >&2; exit 1; }
             sed -i "1i PRICE_STARTER='${SETUP_PRICE_STARTER}'; PRICE_PRO='${SETUP_PRICE_PRO}'; PRICE_ENTERPRISE='${SETUP_PRICE_ENTERPRISE}'; ALLOW_LIVE='${ALLOW_LIVE_INPUT}'" remote.sh
             REMOTE_CMD='IFS= read -r SBK; IFS= read -r SWH; export SBK SWH; bash -s'
